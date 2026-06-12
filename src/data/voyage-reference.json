@@ -1,0 +1,33 @@
+{
+  "id": "fresnes-marseille-2026",
+  "name": "Fresnes ↔ Marseille — Mariage août 2026",
+  "origin": { "name": "Fresnes", "lat": 48.754, "lng": 2.321 },
+  "destination": { "name": "Marseille", "lat": 43.296, "lng": 5.370 },
+  "departureFrom": "2026-07-31",
+  "departureTo": "2026-08-01",
+  "maxDays": 15,
+  "fixedEvents": [
+    {
+      "id": "mariage-marseille",
+      "name": "Mariage",
+      "date": "2026-08-08",
+      "hour": 11.5,
+      "location": {
+        "address": "258 bd Romain Rolland, 13009 Marseille",
+        "lat": 43.258,
+        "lng": 5.407
+      },
+      "maxDistanceKm": 10,
+      "requiresNightBefore": true
+    }
+  ],
+  "plannedStops": [
+    { "city": "Dijon", "nights": 4, "notes": "Visite weekend + télétravail lun-mar" },
+    { "city": "Mâcon", "nights": 2, "notes": "Télétravail mer-jeu" },
+    { "city": "Tain-l'Hermitage", "nights": 1, "notes": "Nuit de passage" },
+    { "city": "Marseille-Ste-Marguerite", "nights": 2, "notes": "Mariage sam 11h30, logement ≤10min du lieu" },
+    { "city": "Montélimar", "nights": 2, "notes": "Télétravail lun-mar, Grignan visite uniquement" },
+    { "city": "Beaune", "nights": 2, "notes": "Télétravail mer-jeu" },
+    { "city": "Sens", "nights": 1, "notes": "Dernière nuit avant Fresnes" }
+  ]
+}

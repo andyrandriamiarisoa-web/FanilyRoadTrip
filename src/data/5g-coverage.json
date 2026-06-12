@@ -1,0 +1,65 @@
+[
+  {
+    "commune": "Dijon",
+    "operator": "SFR",
+    "quality": "good",
+    "antennasCount": 12,
+    "estimatedMbps": 180,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.sfr.fr/assistance/internet-reseau/couverture-reseau.html"
+  },
+  {
+    "commune": "Mâcon",
+    "operator": "SFR",
+    "quality": "good",
+    "antennasCount": 8,
+    "estimatedMbps": 150,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.sfr.fr/assistance/internet-reseau/couverture-reseau.html"
+  },
+  {
+    "commune": "Montélimar",
+    "operator": "SFR",
+    "quality": "excellent",
+    "antennasCount": 16,
+    "estimatedMbps": 350,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.sfr.fr/assistance/internet-reseau/couverture-reseau.html"
+  },
+  {
+    "commune": "Beaune",
+    "operator": "SFR",
+    "quality": "fair",
+    "antennasCount": 5,
+    "estimatedMbps": 80,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.sfr.fr/assistance/internet-reseau/couverture-reseau.html"
+  },
+  {
+    "commune": "Grignan",
+    "operator": "SFR",
+    "quality": "insufficient",
+    "antennasCount": 2,
+    "estimatedMbps": 29,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.sfr.fr/assistance/internet-reseau/couverture-reseau.html"
+  },
+  {
+    "commune": "Tain-l'Hermitage",
+    "operator": "SFR",
+    "quality": "fair",
+    "antennasCount": 4,
+    "estimatedMbps": 70,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.sfr.fr/assistance/internet-reseau/couverture-reseau.html"
+  },
+  {
+    "commune": "Sens",
+    "operator": "SFR",
+    "quality": "fair",
+    "antennasCount": 4,
+    "estimatedMbps": 90,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.sfr.fr/assistance/internet-reseau/couverture-reseau.html"
+  }
+]

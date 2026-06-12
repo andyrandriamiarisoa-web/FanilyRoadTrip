@@ -1,0 +1,586 @@
+[
+  {
+    "id": "dijon-chapeau-rouge",
+    "name": "Hôtel le Chapeau Rouge",
+    "address": "5 Rue Michelet, 21000 Dijon",
+    "lat": 47.3215,
+    "lng": 5.0415,
+    "priceTotal": 760,
+    "nights": 4,
+    "rating": 4.4,
+    "reviewCount": 412,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "best",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/le-chapeau-rouge-dijon.fr.html?checkin=2026-07-31&checkout=2026-08-04&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Dijon?q=hotels+Dijon&dates=2026-07-31%2C2026-08-04"
+      }
+    ]
+  },
+  {
+    "id": "dijon-millotet",
+    "name": "Hôtel Millotet",
+    "address": "9 Rue Jules Mercier, 21000 Dijon",
+    "lat": 47.3225,
+    "lng": 5.0401,
+    "priceTotal": 560,
+    "nights": 4,
+    "rating": 4.1,
+    "reviewCount": 278,
+    "amenities": {
+      "ac": true,
+      "parking": false,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "character",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/millotet-dijon.fr.html?checkin=2026-07-31&checkout=2026-08-04&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Dijon?q=hotels+Dijon&dates=2026-07-31%2C2026-08-04"
+      }
+    ]
+  },
+  {
+    "id": "dijon-inn-design-quetigny",
+    "name": "Inn Design Quetigny",
+    "address": "4 Rue Thomas Edison, 21800 Quetigny",
+    "lat": 47.3298,
+    "lng": 5.1198,
+    "priceTotal": 420,
+    "nights": 4,
+    "rating": 3.9,
+    "reviewCount": 631,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/inn-design-quetigny.fr.html?checkin=2026-07-31&checkout=2026-08-04&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Quetigny?q=hotels+Quetigny&dates=2026-07-31%2C2026-08-04"
+      }
+    ]
+  },
+  {
+    "id": "dijon-ibis-budget",
+    "name": "ibis budget Dijon Centre Clemenceau",
+    "address": "4 Place du Président Wilson, 21000 Dijon",
+    "lat": 47.3237,
+    "lng": 5.0392,
+    "priceTotal": 320,
+    "nights": 4,
+    "rating": 3.5,
+    "reviewCount": 1045,
+    "amenities": {
+      "ac": true,
+      "parking": false,
+      "evCharger": false,
+      "desk": false,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/ibis-budget-dijon-centre-clemenceau.fr.html?checkin=2026-07-31&checkout=2026-08-04&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Dijon?q=hotels+Dijon&dates=2026-07-31%2C2026-08-04"
+      }
+    ]
+  },
+  {
+    "id": "macon-les-saugeys",
+    "name": "Les Saugeys — Gîte de charme",
+    "address": "Les Saugeys, 71000 Mâcon",
+    "lat": 46.3102,
+    "lng": 4.8371,
+    "priceTotal": 480,
+    "nights": 2,
+    "rating": 4.7,
+    "reviewCount": 89,
+    "amenities": {
+      "ac": false,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": true,
+      "pool": true
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "character",
+    "bookingLinks": [
+      {
+        "platform": "airbnb",
+        "url": "https://www.airbnb.fr/s/M%C3%A2con/homes?checkin=2026-08-04&checkout=2026-08-06&adults=2&children=1"
+      },
+      {
+        "platform": "abritel",
+        "url": "https://www.abritel.fr/search?q=M%C3%A2con&startDate=2026-08-04&endDate=2026-08-06&adults=2&children=1"
+      },
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/searchresults.fr.html?ss=M%C3%A2con&checkin=2026-08-04&checkout=2026-08-06&group_adults=2&group_children=1"
+      }
+    ]
+  },
+  {
+    "id": "macon-hotel-ibis",
+    "name": "ibis Mâcon Sud",
+    "address": "Zone Commerciale Sancé, 71000 Mâcon",
+    "lat": 46.2912,
+    "lng": 4.8310,
+    "priceTotal": 280,
+    "nights": 2,
+    "rating": 3.7,
+    "reviewCount": 543,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/ibis-macon-sud.fr.html?checkin=2026-08-04&checkout=2026-08-06&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/M%C3%A2con?q=hotels+Macon&dates=2026-08-04%2C2026-08-06"
+      }
+    ]
+  },
+  {
+    "id": "tain-blue-vue-rhone",
+    "name": "Blue — Vue Rhône",
+    "address": "2 Rue Joseph Péala, 26600 Tain-l'Hermitage",
+    "lat": 45.0715,
+    "lng": 4.8421,
+    "priceTotal": 175,
+    "nights": 1,
+    "rating": 4.5,
+    "reviewCount": 156,
+    "amenities": {
+      "ac": true,
+      "parking": false,
+      "evCharger": false,
+      "desk": false,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "best",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/blue-vue-rhone-tain.fr.html?checkin=2026-08-06&checkout=2026-08-07&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Tain-l%27Hermitage?q=hotels+Tain&dates=2026-08-06%2C2026-08-07"
+      }
+    ]
+  },
+  {
+    "id": "tain-la-batie",
+    "name": "La Bâtie Hôtel",
+    "address": "16 Rue Victor Hugo, 26600 Tain-l'Hermitage",
+    "lat": 45.0701,
+    "lng": 4.8398,
+    "priceTotal": 145,
+    "nights": 1,
+    "rating": 4.2,
+    "reviewCount": 98,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": false,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "character",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/la-batie-tain.fr.html?checkin=2026-08-06&checkout=2026-08-07&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Tain-l%27Hermitage?q=hotels+Tain&dates=2026-08-06%2C2026-08-07"
+      }
+    ]
+  },
+  {
+    "id": "tain-abricotine",
+    "name": "L'Abricotine — Chambre d'hôtes",
+    "address": "Crozes-Hermitage, 26600 Tain-l'Hermitage",
+    "lat": 45.0831,
+    "lng": 4.8557,
+    "priceTotal": 120,
+    "nights": 1,
+    "rating": 4.8,
+    "reviewCount": 47,
+    "amenities": {
+      "ac": false,
+      "parking": true,
+      "evCharger": false,
+      "desk": false,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "character",
+    "bookingLinks": [
+      {
+        "platform": "airbnb",
+        "url": "https://www.airbnb.fr/s/Tain-l%27Hermitage/homes?checkin=2026-08-06&checkout=2026-08-07&adults=2&children=1"
+      },
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/searchresults.fr.html?ss=Tain-l%27Hermitage&checkin=2026-08-06&checkout=2026-08-07&group_adults=2&group_children=1"
+      }
+    ]
+  },
+  {
+    "id": "marseille-adagio-timone",
+    "name": "Adagio Marseille Timone",
+    "address": "Rue du Commandant Rolland, 13005 Marseille",
+    "lat": 43.2902,
+    "lng": 5.3981,
+    "priceTotal": 520,
+    "nights": 2,
+    "rating": 4.0,
+    "reviewCount": 712,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "best",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/adagio-marseille-timone.fr.html?checkin=2026-08-07&checkout=2026-08-09&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Marseille?q=hotels+Marseille&dates=2026-08-07%2C2026-08-09"
+      }
+    ]
+  },
+  {
+    "id": "marseille-ibis-styles-velodrome",
+    "name": "ibis Styles Marseille Vélodrome",
+    "address": "40 Rue des Allées, 13008 Marseille",
+    "lat": 43.2698,
+    "lng": 5.3912,
+    "priceTotal": 380,
+    "nights": 2,
+    "rating": 3.9,
+    "reviewCount": 943,
+    "amenities": {
+      "ac": true,
+      "parking": false,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/ibis-styles-marseille-velodrome.fr.html?checkin=2026-08-07&checkout=2026-08-09&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Marseille?q=hotels+Marseille&dates=2026-08-07%2C2026-08-09"
+      }
+    ]
+  },
+  {
+    "id": "marseille-ibis-budget-timone",
+    "name": "ibis budget Marseille Timone",
+    "address": "47 Boulevard Baille, 13005 Marseille",
+    "lat": 43.2921,
+    "lng": 5.3997,
+    "priceTotal": 250,
+    "nights": 2,
+    "rating": 3.4,
+    "reviewCount": 1208,
+    "amenities": {
+      "ac": true,
+      "parking": false,
+      "evCharger": false,
+      "desk": false,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/ibis-budget-marseille-timone.fr.html?checkin=2026-08-07&checkout=2026-08-09&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Marseille?q=hotels+Marseille&dates=2026-08-07%2C2026-08-09"
+      }
+    ]
+  },
+  {
+    "id": "montelimar-les-faysses",
+    "name": "Les Faysses — Maison d'hôtes",
+    "address": "Les Faysses, 26200 Montélimar",
+    "lat": 44.5587,
+    "lng": 4.7341,
+    "priceTotal": 440,
+    "nights": 2,
+    "rating": 4.6,
+    "reviewCount": 134,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": true,
+      "pool": true
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "character",
+    "bookingLinks": [
+      {
+        "platform": "airbnb",
+        "url": "https://www.airbnb.fr/s/Mont%C3%A9limar/homes?checkin=2026-08-09&checkout=2026-08-11&adults=2&children=1"
+      },
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/searchresults.fr.html?ss=Mont%C3%A9limar&checkin=2026-08-09&checkout=2026-08-11&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Mont%C3%A9limar?q=hotels+Montelimar&dates=2026-08-09%2C2026-08-11"
+      }
+    ]
+  },
+  {
+    "id": "montelimar-kyriad",
+    "name": "Kyriad Montélimar Centre",
+    "address": "29 Avenue du Général de Gaulle, 26200 Montélimar",
+    "lat": 44.5561,
+    "lng": 4.7499,
+    "priceTotal": 310,
+    "nights": 2,
+    "rating": 3.8,
+    "reviewCount": 421,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/kyriad-montelimar-centre.fr.html?checkin=2026-08-09&checkout=2026-08-11&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Mont%C3%A9limar?q=hotels+Montelimar&dates=2026-08-09%2C2026-08-11"
+      }
+    ]
+  },
+  {
+    "id": "beaune-coto-hotel",
+    "name": "Coto Hotel Beaune",
+    "address": "Rue du Faubourg Saint-Nicolas, 21200 Beaune",
+    "lat": 47.0212,
+    "lng": 4.8389,
+    "priceTotal": 520,
+    "nights": 2,
+    "rating": 4.3,
+    "reviewCount": 267,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": true
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "best",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/coto-beaune.fr.html?checkin=2026-08-11&checkout=2026-08-13&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Beaune?q=hotels+Beaune&dates=2026-08-11%2C2026-08-13"
+      }
+    ]
+  },
+  {
+    "id": "beaune-ibis-styles",
+    "name": "ibis Styles Beaune Centre",
+    "address": "4 Boulevard Perpreuil, 21200 Beaune",
+    "lat": 47.0233,
+    "lng": 4.8401,
+    "priceTotal": 360,
+    "nights": 2,
+    "rating": 3.9,
+    "reviewCount": 589,
+    "amenities": {
+      "ac": true,
+      "parking": false,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/ibis-styles-beaune-centre.fr.html?checkin=2026-08-11&checkout=2026-08-13&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Beaune?q=hotels+Beaune&dates=2026-08-11%2C2026-08-13"
+      }
+    ]
+  },
+  {
+    "id": "sens-kyriad",
+    "name": "Kyriad Sens",
+    "address": "12 Rue de la République, 89100 Sens",
+    "lat": 48.1981,
+    "lng": 3.2801,
+    "priceTotal": 135,
+    "nights": 1,
+    "rating": 3.8,
+    "reviewCount": 312,
+    "amenities": {
+      "ac": true,
+      "parking": true,
+      "evCharger": false,
+      "desk": true,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "desk32", "lateCheckout", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "eco",
+    "bookingLinks": [
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/hotel/fr/kyriad-sens.fr.html?checkin=2026-08-13&checkout=2026-08-14&group_adults=2&group_children=1"
+      },
+      {
+        "platform": "google",
+        "url": "https://www.google.fr/travel/hotels/Sens?q=hotels+Sens&dates=2026-08-13%2C2026-08-14"
+      }
+    ]
+  },
+  {
+    "id": "sens-au-coeur-de-sens",
+    "name": "Au cœur de Sens — Chambre d'hôtes",
+    "address": "Grande Rue, 89100 Sens",
+    "lat": 48.1993,
+    "lng": 3.2821,
+    "priceTotal": 110,
+    "nights": 1,
+    "rating": 4.5,
+    "reviewCount": 68,
+    "amenities": {
+      "ac": false,
+      "parking": false,
+      "evCharger": false,
+      "desk": false,
+      "parasol": false,
+      "pool": false
+    },
+    "toConfirm": ["firmMattress", "babyBed"],
+    "sourceStatus": "verified",
+    "tier": "character",
+    "bookingLinks": [
+      {
+        "platform": "airbnb",
+        "url": "https://www.airbnb.fr/s/Sens/homes?checkin=2026-08-13&checkout=2026-08-14&adults=2&children=1"
+      },
+      {
+        "platform": "booking",
+        "url": "https://www.booking.com/searchresults.fr.html?ss=Sens&checkin=2026-08-13&checkout=2026-08-14&group_adults=2&group_children=1"
+      }
+    ]
+  }
+]

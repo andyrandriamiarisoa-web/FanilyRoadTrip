@@ -1,0 +1,112 @@
+[
+  {
+    "id": "sc-villebon-sur-yvette",
+    "name": "Villebon-sur-Yvette",
+    "lat": 48.7027,
+    "lng": 2.2147,
+    "numStalls": 20,
+    "maxKw": 250,
+    "version": "V4",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-fontainebleau-acheres",
+    "name": "Fontainebleau / Achères-la-Forêt",
+    "lat": 48.4389,
+    "lng": 2.6613,
+    "numStalls": 12,
+    "maxKw": 200,
+    "version": "V3",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-sens-maillot",
+    "name": "Sens-Maillot",
+    "lat": 48.1983,
+    "lng": 3.2742,
+    "numStalls": 12,
+    "maxKw": 200,
+    "version": "V3",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-beaune-merceuil",
+    "name": "Beaune-Merceuil",
+    "lat": 46.9512,
+    "lng": 4.8313,
+    "numStalls": 16,
+    "maxKw": 200,
+    "version": "V3",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-dijon-longvic",
+    "name": "Dijon-Longvic",
+    "lat": 47.2998,
+    "lng": 5.0917,
+    "numStalls": 16,
+    "maxKw": 250,
+    "version": "V4",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-macon-sance",
+    "name": "Mâcon-Sancé",
+    "lat": 46.2889,
+    "lng": 4.8292,
+    "numStalls": 20,
+    "maxKw": 150,
+    "version": "V3",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-lyon-dardilly",
+    "name": "Lyon-Dardilly",
+    "lat": 45.8007,
+    "lng": 4.7531,
+    "numStalls": 16,
+    "maxKw": 200,
+    "version": "V3",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-porte-les-valence",
+    "name": "Porte-lès-Valence",
+    "lat": 44.8878,
+    "lng": 4.8921,
+    "numStalls": 16,
+    "maxKw": 250,
+    "version": "V4",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-montelimar-nord",
+    "name": "Montélimar-Nord",
+    "lat": 44.5903,
+    "lng": 4.7498,
+    "numStalls": 12,
+    "maxKw": 200,
+    "version": "V3",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-lancon-de-provence",
+    "name": "Lançon-de-Provence",
+    "lat": 43.5912,
+    "lng": 5.1301,
+    "numStalls": 12,
+    "maxKw": 200,
+    "version": "V3",
+    "sourceStatus": "seed"
+  },
+  {
+    "id": "sc-marseille-la-valentine",
+    "name": "Marseille-La Valentine",
+    "lat": 43.3001,
+    "lng": 5.4521,
+    "numStalls": 16,
+    "maxKw": 250,
+    "version": "V4",
+    "sourceStatus": "seed"
+  }
+]

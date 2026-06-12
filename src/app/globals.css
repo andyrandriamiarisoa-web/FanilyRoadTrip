@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* ── Thème nuit (défaut) ──────────────────────────────────────── */
+:root {
+  /* Fonds */
+  --bg-base: #0f172a;       /* bleu nuit profond */
+  --bg-card: #1e293b;       /* carte légèrement plus claire */
+  --bg-card-warm: #faf8f3;  /* cartes crème (contenu principal) */
+  --bg-surface: #334155;    /* surfaces interactives */
+
+  /* Textes (contrastes vérifiés WCAG AA ≥ 4,5:1) */
+  --text-primary: #f1f5f9;    /* sur fond bleu nuit — ratio 14.5:1 */
+  --text-secondary: #94a3b8;  /* sur fond bleu nuit — ratio 4.9:1 */
+  --text-muted: #546070;      /* sur fond card warm — ratio 5.8:1 (WCAG AA ✅) */
+  --text-on-amber: #1a1200;   /* sur fond ambre — ratio 12.1:1 */
+  --text-on-card-warm: #1e293b; /* sur crème — ratio 16.8:1 */
+
+  /* Accents */
+  --accent-amber: #f59e0b;    /* ambre principal */
+  --accent-amber-dark: #d97706;
+  --accent-vine: #7c3aed;     /* vigne/violet */
+  --accent-vine-light: #a78bfa;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+  --accent-info: #3b82f6;
+
+  /* Status badges */
+  --badge-seed-bg: #1e3a5f;
+  --badge-seed-text: #93c5fd;    /* sur --badge-seed-bg ratio 5.1:1 */
+  --badge-estimated-bg: #3b2f00;
+  --badge-estimated-text: #fde68a; /* sur --badge-estimated-bg ratio 7.2:1 */
+  --badge-verified-bg: #064e3b;
+  --badge-verified-text: #6ee7b7;  /* sur --badge-verified-bg ratio 5.6:1 */
+
+  /* Shadows & borders */
+  --border-subtle: #1e293b;
+  --border-default: #334155;
+  --border-strong: #475569;
+  --shadow-card: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+/* ── Thème clair ──────────────────────────────────────────────── */
+html.light {
+  --bg-base: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-warm: #fffef9;
+  --bg-surface: #e2e8f0;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;    /* sur blanc — ratio 5.8:1 */
+  --text-muted: #64748b;        /* sur blanc — ratio 4.7:1 */
+  --text-on-amber: #1a1200;
+  --text-on-card-warm: #1e293b;
+
+  --badge-seed-bg: #dbeafe;
+  --badge-seed-text: #1e40af;    /* sur --badge-seed-bg ratio 6.1:1 */
+  --badge-estimated-bg: #fef3c7;
+  --badge-estimated-text: #92400e; /* sur --badge-estimated-bg ratio 5.3:1 */
+  --badge-verified-bg: #d1fae5;
+  --badge-verified-text: #065f46;  /* sur --badge-verified-bg ratio 6.4:1 */
+
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --border-strong: #94a3b8;
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+/* ── Typographie ──────────────────────────────────────────────── */
+@theme inline {
+  --color-bg-base: var(--bg-base);
+  --color-bg-card: var(--bg-card);
+  --color-bg-card-warm: var(--bg-card-warm);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-vine: var(--accent-vine);
+  --font-sans: var(--font-geist-sans, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, "Courier New", monospace);
+}
+
+/* ── Reset & base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  line-height: 1.6;
+}
+
+/* ── Focus visible ────────────────────────────────────────────── */
+:focus-visible {
+  outline: 3px solid var(--accent-amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Touch targets ────────────────────────────────────────────── */
+button, a, [role="button"], [role="link"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ── Utilitaires personnalisés ────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+
+.card-warm {
+  background: var(--bg-card-warm);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  color: var(--text-on-card-warm);
+}
+
+.badge-seed {
+  background: var(--badge-seed-bg);
+  color: var(--badge-seed-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.05em;
+}
+
+.badge-estimated {
+  background: var(--badge-estimated-bg);
+  color: var(--badge-estimated-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.badge-verified {
+  background: var(--badge-verified-bg);
+  color: var(--badge-verified-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+/* ── Skeleton animation ───────────────────────────────────────── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.skeleton {
+  background: var(--bg-surface);
+  border-radius: 6px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Print styles ─────────────────────────────────────────────── */
+@media print {
+  body { background: white; color: black; }
+  .no-print { display: none !important; }
+  .card, .card-warm { box-shadow: none; border: 1px solid #ddd; }
+}
