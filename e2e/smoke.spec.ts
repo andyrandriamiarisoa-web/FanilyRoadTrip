@@ -7,14 +7,14 @@ import { test, expect } from "@playwright/test"
 test("home page loads with correct title and navigation links", async ({ page }) => {
   await page.goto("/")
   await expect(page).toHaveTitle(/Odyssée/)
-  // Main nav links
-  await expect(page.getByRole("link", { name: /carnet/i })).toBeVisible()
-  await expect(page.getByRole("link", { name: /plan/i })).toBeVisible()
+  // Main navigation links (assert by href — labels are descriptive, not "plan"/"carnet")
+  await expect(page.locator('a[href="/plan"]')).toBeVisible()
+  await expect(page.locator('a[href="/carnet"]')).toBeVisible()
 })
 
-test("home page has no ARIA violations on core landmarks", async ({ page }) => {
+test("home page exposes a main landmark", async ({ page }) => {
   await page.goto("/")
-  // Verify header/main/nav landmarks exist (basic a11y structure check)
+  // Layout wraps content in a <main> element (basic a11y structure check)
   await expect(page.locator("main, [role='main']").first()).toBeVisible()
 })
 
@@ -26,8 +26,8 @@ test("plan page shows generate button and trip summary", async ({ page }) => {
   await page.goto("/plan")
   await expect(page).toHaveTitle(/Générer/)
   await expect(page.getByRole("button", { name: /générer/i })).toBeVisible()
-  // Shows reference trip info
-  await expect(page.getByText(/Fresnes/i)).toBeVisible()
+  // Shows reference trip info (appears in both the intro and the summary card)
+  await expect(page.getByText(/Fresnes/i).first()).toBeVisible()
 })
 
 test("plan generation flow — mock mode returns a trip plan", async ({ page }) => {
@@ -37,10 +37,11 @@ test("plan generation flow — mock mode returns a trip plan", async ({ page }) 
   const btn = page.getByRole("button", { name: /générer/i })
   await btn.click()
 
-  // Wait for completion (mock mode should be fast, up to 15s)
-  await expect(
-    page.getByText(/planification terminée|carnet de route/i)
-  ).toBeVisible({ timeout: 15_000 })
+  // Success state shows "Plan généré !" (mock mode is fast, allow up to 15s)
+  await expect(page.getByText(/plan généré/i)).toBeVisible({ timeout: 15_000 })
+
+  // ...then auto-redirects to the carnet de route after ~1.5s
+  await expect(page).toHaveURL(/\/carnet/, { timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
