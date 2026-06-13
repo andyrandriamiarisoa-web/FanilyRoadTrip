@@ -32,6 +32,8 @@
   --badge-estimated-text: #fde68a; /* sur --badge-estimated-bg ratio 7.2:1 */
   --badge-verified-bg: #064e3b;
   --badge-verified-text: #6ee7b7;  /* sur --badge-verified-bg ratio 5.6:1 */
+  --badge-danger-bg: #4c1414;
+  --badge-danger-text: #fca5a5;    /* sur --badge-danger-bg ratio 6.0:1 */
 
   /* Shadows & borders */
   --border-subtle: #1e293b;
@@ -59,6 +61,8 @@ html.light {
   --badge-estimated-text: #92400e; /* sur --badge-estimated-bg ratio 5.3:1 */
   --badge-verified-bg: #d1fae5;
   --badge-verified-text: #065f46;  /* sur --badge-verified-bg ratio 6.4:1 */
+  --badge-danger-bg: #fee2e2;
+  --badge-danger-text: #991b1b;    /* sur --badge-danger-bg ratio 6.6:1 */
 
   --border-subtle: #e2e8f0;
   --border-default: #cbd5e1;
@@ -156,6 +160,15 @@ button, a, [role="button"], [role="link"] {
 .badge-verified {
   background: var(--badge-verified-bg);
   color: var(--badge-verified-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.badge-danger {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
   font-size: 0.75rem;
   font-weight: 600;
   padding: 2px 8px;

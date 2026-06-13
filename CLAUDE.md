@@ -11,6 +11,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M3 | **Connexion Tesla mock-first** (`VehicleProvider`, sélection véhicule, lecture SoC ponctuelle) | ✅ |
 | M4 | **Routage charge-aware** (`RoutePlanner`, Superchargeurs only, SoC départ réel/cible → arrivée cible, préconditionnement) | ✅ |
 | M5 | **Fusion des contraintes** (pauses bébé, blocage canicule 12h–16h, évitement télétravail, chronologie heure par heure) | ✅ |
+| M6 | **Hébergements & workation** (conformité bureau/clim/5G/matelas, classement sans exclusion) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -53,6 +54,15 @@ et signale honnêtement les débordements (nuitée nécessaire). Branché dans
 `ChargePlanner` (heure de départ + bascules canicule / jour travaillé) à partir du
 Profil Foyer (M1). Testé : un trajet en canicule recale les pauses et bloque 12h–16h.
 *Prochaine étape : hébergements conformes + mode workation (M6).*
+
+**Hébergements & workation (M6)** : `src/lib/lodging/workation.ts` évalue chaque
+hébergement contre les exigences télétravail (bureau ≥ N cm, fibre + secours 5G,
+clim) et médicale (matelas ferme), en combinant équipements + couverture 5G SFR
+de la commune (`5g-coverage.json`). Statut par critère : conforme / à confirmer /
+non conforme. **Anti-pattern respecté** : `rankForWorkationNight` **classe sans
+jamais exclure** ; `recommendForWorkationNight` recommande le meilleur conforme
+s'il existe, sinon signale. Surface dans `LodgingPanel` (badges de conformité,
+nouveau badge `badge-danger` WCAG AA). *Prochaine étape : génération IA (M7).*
 
 ## Commandes essentielles
 
