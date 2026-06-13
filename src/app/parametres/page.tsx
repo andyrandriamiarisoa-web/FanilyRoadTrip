@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { VehicleConnect } from "@/components/settings/VehicleConnect";
+import { TeslaSetupAssistant } from "@/components/settings/TeslaSetupAssistant";
 
 export const metadata: Metadata = {
   title: "Paramètres",
@@ -21,6 +22,8 @@ export default function ParametresPage() {
       <ProfileSettings />
 
       <VehicleConnect />
+
+      <TeslaSetupAssistant />
 
       <section className="card p-5 space-y-4">
         <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
