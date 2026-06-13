@@ -76,6 +76,13 @@ export default function HomePage() {
           Réservations
         </Link>
         <Link
+          href="/collaboration"
+          className="text-sm font-medium underline underline-offset-4"
+          style={{ color: "var(--accent-vine-light)" }}
+        >
+          Vote activités
+        </Link>
+        <Link
           href="/parametres"
           className="text-sm font-medium underline underline-offset-4"
           style={{ color: "var(--text-secondary)" }}

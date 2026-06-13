@@ -17,6 +17,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M8b | **Listes de bagages** bébé-aware (durée/saison, quantités échelonnées, checklist persistante) | ✅ |
 | M8c | **Import des réservations** (extraction mock-first/IA, agrégation dans l'itinéraire) | ✅ |
 | M9a | **Export calendrier** (.ics RFC 5545 — événements fixes, nuitées, réservations) | ✅ |
+| M9b | **Collaboration** (vote d'activités par approbation, sondage fusionnable & partageable par URL) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -120,6 +121,15 @@ les journées entières). `tripPlanToEvents` (événements fixes horaires + nuit
 et `reservationsToEvents` (périodes). Bouton « Calendrier .ics » dans le carnet
 télécharge un fichier importable dans n'importe quel agenda. *Prochaine étape :
 collaboration (vote d'activités) et robustesse hors-ligne (M9b/M9c).*
+
+**Collaboration (M9b)** : `src/lib/collab/poll.ts` — vote d'activités par
+**approbation** (chacun approuve plusieurs activités). Sondage **fusionnable**
+(`mergePolls` : union déterministe, idempotente, dédupliquée des options/votes)
+→ partage **sans serveur** : un lien `?poll=<lz-string>` encode l'état, et la
+page fusionne les votes reçus à l'ouverture. Persistance Dexie v6. UI
+`/collaboration` (`ActivityVote`) : prénom → approbation, décompte trié avec
+votants, ajout d'activités, copie du lien de vote. *Prochaine étape : robustesse
+hors-ligne (M9c).*
 
 ## Commandes essentielles
 

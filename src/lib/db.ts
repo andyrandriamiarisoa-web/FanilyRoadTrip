@@ -10,6 +10,7 @@ import {
 } from "@/lib/profile/profile";
 import type { Expense, ExpenseCategory } from "@/lib/budget/budget";
 import type { Reservation } from "@/lib/reservations/reservation-types";
+import { defaultPoll, type Poll } from "@/lib/collab/poll";
 
 /** Identifiant du profil foyer actif (un seul foyer pour l'instant). */
 export const ACTIVE_PROFILE_ID = "famille-default";
@@ -59,6 +60,12 @@ interface PackingStateRow {
 
 const PACKING_STATE_ID = "active";
 
+interface PollStateRow extends Poll {
+  id: string;
+}
+
+const POLL_STATE_ID = "active";
+
 const DEFAULT_BUDGET_SETTINGS: Omit<BudgetSettingsRow, "id"> = {
   travelers: ["Parent 1", "Parent 2"],
   budgets: { lodging: 1500, charging: 150, food: 600, activities: 400, tolls: 120, misc: 200 },
@@ -73,6 +80,7 @@ export class OdysseeDatabase extends Dexie {
   budgetSettings!: EntityTable<BudgetSettingsRow, "id">;
   packingState!: EntityTable<PackingStateRow, "id">;
   reservations!: EntityTable<Reservation, "id">;
+  pollState!: EntityTable<PollStateRow, "id">;
 
   constructor() {
     super("odyssee-db");
@@ -97,6 +105,10 @@ export class OdysseeDatabase extends Dexie {
     // v5 : réservations importées (M8).
     this.version(5).stores({
       reservations: "id, startDate",
+    });
+    // v6 : sondage collaboratif (M9).
+    this.version(6).stores({
+      pollState: "id",
     });
   }
 }
@@ -314,4 +326,22 @@ export async function addReservation(reservation: Reservation): Promise<void> {
 export async function deleteReservation(id: string): Promise<void> {
   const db = getDb();
   await db.reservations.delete(id);
+}
+
+// ---------------------------------------------------------------------------
+// Sondage collaboratif (M9)
+// ---------------------------------------------------------------------------
+
+export async function loadPoll(): Promise<Poll> {
+  const db = getDb();
+  const row = await db.pollState.get(POLL_STATE_ID);
+  if (row) return { options: row.options, votes: row.votes };
+  const seeded = defaultPoll();
+  await db.pollState.put({ id: POLL_STATE_ID, ...seeded });
+  return seeded;
+}
+
+export async function savePoll(poll: Poll): Promise<void> {
+  const db = getDb();
+  await db.pollState.put({ id: POLL_STATE_ID, ...poll });
 }
