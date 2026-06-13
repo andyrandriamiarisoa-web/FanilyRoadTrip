@@ -51,9 +51,11 @@ test("plan generation flow — mock mode returns a trip plan", async ({ page }) 
 test("carnet page renders without crashing", async ({ page }) => {
   await page.goto("/carnet")
   await expect(page).toHaveTitle(/Carnet/)
-  // Either shows a plan or empty state
-  const body = await page.locator("main, [role='main']").first().textContent()
-  expect(body).toBeTruthy()
+  // Assertion « web-first » qui patiente jusqu'à l'hydratation du client
+  // (plan ou état vide), évitant un textContent lu trop tôt (flaky).
+  await expect(page.locator("main, [role='main']").first()).toContainText(/\S/, {
+    timeout: 10_000,
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -154,13 +156,15 @@ test("connexion Tesla (mock) — lister, choisir et lire le SoC", async ({ page 
   await expect(vehicleBtn).toBeVisible()
 
   // Sélectionne le véhicule → lecture ponctuelle de l'état de charge.
+  // Locator exact sur le libellé <dt> pour éviter la collision avec le
+  // sous-titre « Lecture ponctuelle de l'état de charge… ».
   await vehicleBtn.click()
-  await expect(page.getByText(/état de charge/i)).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/autonomie estimée/i)).toBeVisible()
+  await expect(page.getByText("État de charge", { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText("Autonomie estimée", { exact: true })).toBeVisible()
 
   // La sélection persiste après rechargement (IndexedDB).
   await page.reload()
-  await expect(page.getByText(/état de charge/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText("État de charge", { exact: true })).toBeVisible({ timeout: 10_000 })
 })
 
 test("clé publique Tesla absente → 404 en mode mock", async ({ request }) => {
