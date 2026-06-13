@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ProfileSettings } from "@/components/settings/ProfileSettings";
 
 export const metadata: Metadata = {
   title: "Paramètres",
@@ -16,17 +17,7 @@ export default function ParametresPage() {
         </p>
       </header>
 
-      <section className="card p-5 space-y-4">
-        <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
-          Profil famille (voyage de référence)
-        </h2>
-
-        <ProfileRow label="Véhicule" value="Tesla Model S Raven" note="Superchargeurs uniquement" />
-        <ProfileRow label="Bébé" value="6 mois" note="Pauses toutes les 90–120 min" />
-        <ProfileRow label="Médical" value="Spondylarthrite" note="Matelas ferme obligatoire" />
-        <ProfileRow label="Télétravail" value="Lun–Jeu 8h30–19h" note="Bureau ≥ 120 cm, fibre + 5G SFR" />
-        <ProfileRow label="Conduite" value="≤ 2h20 par trajet" note="Après 19h les jours travaillés, jamais 12h–16h en canicule" />
-      </section>
+      <ProfileSettings />
 
       <section className="card p-5 space-y-4">
         <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -70,35 +61,6 @@ export default function ParametresPage() {
           Vérifier sur monreseaumobile.arcep.fr
         </a>
       </section>
-    </div>
-  );
-}
-
-function ProfileRow({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: string;
-  note: string;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 py-2 border-b border-[var(--border-subtle)] last:border-0">
-      <span
-        className="text-xs font-semibold uppercase tracking-wide w-28 shrink-0"
-        style={{ color: "var(--text-muted)" }}
-      >
-        {label}
-      </span>
-      <div>
-        <span className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
-          {value}
-        </span>
-        <span className="text-xs ml-2" style={{ color: "var(--text-secondary)" }}>
-          {note}
-        </span>
-      </div>
     </div>
   );
 }
