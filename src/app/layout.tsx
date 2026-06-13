@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppModeBar } from "@/components/ui/AppModeBar";
+import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 import { ThemeScript } from "@/components/ui/ThemeScript";
 
 const geistSans = Geist({
@@ -63,6 +64,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <AppModeBar />
+        <OfflineIndicator />
         <main className="flex-1 flex flex-col">{children}</main>
       </body>
     </html>

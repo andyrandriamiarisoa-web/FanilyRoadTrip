@@ -379,3 +379,27 @@ test("collaboration — voter pour une activité et voir le décompte", async ({
   await page.getByLabel(/votre prénom/i).fill("Andy")
   await expect(page.getByText(/1 vote · Andy/i).first()).toBeVisible({ timeout: 10_000 })
 })
+
+// ---------------------------------------------------------------------------
+// Robustesse hors-ligne (M9)
+// ---------------------------------------------------------------------------
+
+test("hors-ligne — bandeau affiché quand la connexion tombe", async ({ page, context }) => {
+  await page.goto("/")
+  // En ligne : pas de bandeau hors-ligne.
+  await expect(page.getByText(/votre carnet, budget, bagages/i)).toHaveCount(0)
+
+  // Passe hors-ligne : le bandeau apparaît (réagit à l'événement offline).
+  await context.setOffline(true)
+  await expect(page.getByText(/hors ligne — votre carnet/i)).toBeVisible({ timeout: 10_000 })
+
+  // Retour en ligne : le bandeau disparaît.
+  await context.setOffline(false)
+  await expect(page.getByText(/hors ligne — votre carnet/i)).toHaveCount(0, { timeout: 10_000 })
+})
+
+test("page hors-ligne — liste des fonctions disponibles", async ({ page }) => {
+  await page.goto("/offline")
+  await expect(page.getByText(/disponible hors-ligne/i)).toBeVisible()
+  await expect(page.getByText(/Carnet de route/i).first()).toBeVisible()
+})
