@@ -33,8 +33,18 @@ const SECURITY_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
 ];
 
+// Version déployée — exposée au client pour lever toute ambiguïté sur la build
+// en cours (utile pour vérifier qu'un correctif est bien en ligne). Le SHA vient
+// de Vercel ; l'horodatage est figé au moment du build.
+const BUILD_SHA = (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) || "local";
+const BUILD_TIME = new Date().toISOString();
+
 const baseConfig: NextConfig = {
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_BUILD_SHA: BUILD_SHA,
+    NEXT_PUBLIC_BUILD_TIME: BUILD_TIME,
+  },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
