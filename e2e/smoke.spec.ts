@@ -339,3 +339,19 @@ test("réservations — extraction depuis un texte collé et agrégation", async
   await page.reload()
   await expect(page.getByText(/Chapeau Rouge/i).first()).toBeVisible({ timeout: 10_000 })
 })
+
+// ---------------------------------------------------------------------------
+// Export calendrier .ics (M9)
+// ---------------------------------------------------------------------------
+
+test("export calendrier .ics depuis le carnet", async ({ page }) => {
+  // Génère un plan puis exporte le calendrier.
+  await page.goto("/plan")
+  await page.getByRole("button", { name: /générer le voyage/i }).click()
+  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
+
+  const downloadPromise = page.waitForEvent("download")
+  await page.getByRole("button", { name: /calendrier \.ics/i }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe("odyssee-voyage.ics")
+})

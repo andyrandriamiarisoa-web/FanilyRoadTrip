@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { LodgingPanel } from "@/components/lodging/LodgingPanel";
 import { ReservationsForDay } from "@/components/reservations/ReservationsForDay";
 import { exportTripAsJson, shareTripUrl } from "@/lib/export";
+import { buildIcs, tripPlanToEvents, reservationsToEvents } from "@/lib/calendar/ics";
 
 /** Réservations couvrant une date (début ≤ date ≤ fin, ou début = date). */
 function reservationsOnDate(reservations: Reservation[], date: string): Reservation[] {
@@ -66,6 +67,21 @@ export function RoadbookClient() {
     const url = shareTripUrl(plan);
     await navigator.clipboard.writeText(url).catch(() => {});
     setExportMsg("Lien copié dans le presse-papiers !");
+    setTimeout(() => setExportMsg(null), 3000);
+  }
+
+  function handleExportIcs() {
+    if (!plan) return;
+    const events = [...tripPlanToEvents(plan), ...reservationsToEvents(reservations)];
+    const ics = buildIcs(events);
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "odyssee-voyage.ics";
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportMsg("Calendrier .ics exporté !");
     setTimeout(() => setExportMsg(null), 3000);
   }
 
@@ -127,6 +143,9 @@ export function RoadbookClient() {
         </Button>
         <Button variant="secondary" size="sm" onClick={handleShare}>
           Partager
+        </Button>
+        <Button variant="secondary" size="sm" onClick={handleExportIcs}>
+          Calendrier .ics
         </Button>
         <Button variant="ghost" size="sm" onClick={() => window.print()}>
           Imprimer
