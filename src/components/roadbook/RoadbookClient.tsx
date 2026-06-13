@@ -1,13 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getLatestTrip, getLodgingSelections, saveLodgingSelection } from "@/lib/db";
+import { getLatestTrip, getLodgingSelections, saveLodgingSelection, listReservations } from "@/lib/db";
 import type { TripPlan, DayPlan } from "@/types";
+import type { Reservation } from "@/lib/reservations/reservation-types";
 import { DayPlanSkeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { LodgingPanel } from "@/components/lodging/LodgingPanel";
+import { ReservationsForDay } from "@/components/reservations/ReservationsForDay";
 import { exportTripAsJson, shareTripUrl } from "@/lib/export";
+
+/** Réservations couvrant une date (début ≤ date ≤ fin, ou début = date). */
+function reservationsOnDate(reservations: Reservation[], date: string): Reservation[] {
+  return reservations.filter((r) => {
+    const end = r.endDate ?? r.startDate;
+    return r.startDate <= date && date <= end;
+  });
+}
 
 export function RoadbookClient() {
   const [plan, setPlan] = useState<TripPlan | null>(null);
@@ -15,6 +25,7 @@ export function RoadbookClient() {
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -27,6 +38,8 @@ export function RoadbookClient() {
           const sel = await getLodgingSelections(trip.id);
           setSelections(sel);
         }
+        const res = await listReservations();
+        if (mounted) setReservations(res);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -163,6 +176,7 @@ export function RoadbookClient() {
             isActive={activeDay === day.date}
             onToggle={() => setActiveDay(activeDay === day.date ? null : day.date)}
             onSelectLodging={(id) => selectLodging(day.date, id)}
+            reservations={reservationsOnDate(reservations, day.date)}
           />
         ))}
       </div>
@@ -203,12 +217,14 @@ function DayCard({
   isActive,
   onToggle,
   onSelectLodging,
+  reservations,
 }: {
   day: DayPlan;
   selectedLodgingId?: string;
   isActive: boolean;
   onToggle: () => void;
   onSelectLodging: (id: string) => void;
+  reservations: Reservation[];
 }) {
   const date = new Date(day.date);
   const dayStr = date.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
@@ -312,6 +328,9 @@ function DayCard({
               )}
             </div>
           )}
+
+          {/* Réservations importées (M8) */}
+          {reservations.length > 0 && <ReservationsForDay reservations={reservations} />}
 
           {/* Lodging panel */}
           {day.lodging && (
