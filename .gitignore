@@ -42,3 +42,8 @@ next-env.d.ts
 # Generated service worker (generated at build time)
 public/sw.js
 public/sw.js.map
+
+# Playwright artifacts
+/test-results/
+/playwright-report/
+/playwright/.cache/

@@ -2,6 +2,15 @@
 
 import Dexie, { type EntityTable } from "dexie";
 import type { TripPlan, FamilyProfile } from "@/types";
+import {
+  createDefaultProfile,
+  safeParseProfile,
+  updateProfile,
+  type ProfilePatch,
+} from "@/lib/profile/profile";
+
+/** Identifiant du profil foyer actif (un seul foyer pour l'instant). */
+export const ACTIVE_PROFILE_ID = "famille-default";
 
 interface StoredTripPlan extends TripPlan {
   storedAt: string;
@@ -69,6 +78,38 @@ export async function saveLodgingSelection(
     lodgingId,
     selectedAt: new Date().toISOString(),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Profil Foyer — chargement, graine au premier lancement, sauvegarde versionnée
+// ---------------------------------------------------------------------------
+
+/**
+ * Charge le profil foyer actif. Au premier lancement (table vide), la graine
+ * de référence est persistée puis renvoyée. Si la valeur stockée est corrompue
+ * ou issue d'un ancien schéma, on retombe proprement sur la graine.
+ */
+export async function loadActiveProfile(): Promise<FamilyProfile> {
+  const db = getDb();
+  const stored = await db.profiles.get(ACTIVE_PROFILE_ID);
+  const valid = stored ? safeParseProfile(stored) : null;
+  if (valid) return valid;
+
+  const seeded = createDefaultProfile();
+  await db.profiles.put(seeded);
+  return seeded;
+}
+
+/**
+ * Applique un patch au profil actif, incrémente la version, horodate et
+ * persiste. Renvoie le profil enregistré.
+ */
+export async function saveProfilePatch(patch: ProfilePatch): Promise<FamilyProfile> {
+  const db = getDb();
+  const current = await loadActiveProfile();
+  const next = updateProfile(current, patch);
+  await db.profiles.put(next);
+  return next;
 }
 
 export async function getLodgingSelections(

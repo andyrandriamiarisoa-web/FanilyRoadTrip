@@ -111,3 +111,29 @@ for (const route of MAIN_ROUTES) {
     expect(res.status()).toBe(200)
   })
 }
+
+// ---------------------------------------------------------------------------
+// Profil Foyer — éditable, versionné, persistant (M1)
+// ---------------------------------------------------------------------------
+
+test("profil foyer — édition, sauvegarde versionnée et persistance", async ({ page }) => {
+  await page.goto("/parametres")
+
+  // Le profil se charge depuis IndexedDB (graine au premier lancement).
+  const ageField = page.getByLabel("Âge (mois)")
+  await expect(ageField).toBeVisible()
+  await expect(ageField).toHaveValue("6")
+
+  // Édite une contrainte et enregistre.
+  await ageField.fill("8")
+  await page.getByRole("button", { name: /enregistrer le profil/i }).click()
+
+  // La version est incrémentée et confirmée à l'utilisateur.
+  await expect(page.getByText(/enregistré — version 2/i)).toBeVisible({ timeout: 10_000 })
+
+  // La modification survit à un rechargement (persistance IndexedDB).
+  await page.reload()
+  const reloaded = page.getByLabel("Âge (mois)")
+  await expect(reloaded).toHaveValue("8")
+  await expect(page.getByText("v2")).toBeVisible()
+})

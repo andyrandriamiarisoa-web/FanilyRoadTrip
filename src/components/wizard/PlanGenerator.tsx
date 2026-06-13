@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { saveTrip } from "@/lib/db";
+import { saveTrip, loadActiveProfile } from "@/lib/db";
 import type { TripPlan } from "@/types";
 import { REFERENCE_TRIP_REQUEST } from "@/data/voyage-reference";
 
@@ -42,10 +42,13 @@ export function PlanGenerator() {
     }, 400);
 
     try {
+      // Le profil foyer actif (éditable, versionné) pilote la génération :
+      // son id est attaché au plan pour tracer la version des contraintes.
+      const profile = await loadActiveProfile();
       const res = await fetch("/api/agents/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(REFERENCE_TRIP_REQUEST),
+        body: JSON.stringify({ ...REFERENCE_TRIP_REQUEST, profileId: profile.id }),
       });
 
       clearInterval(interval);

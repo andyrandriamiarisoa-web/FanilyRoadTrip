@@ -2,6 +2,22 @@
 
 Application PWA mobile-first en français pour planifier un voyage en Tesla Model S Raven avec contraintes familiales et médicales.
 
+## État d'avancement
+
+| Lot | Sujet | Statut |
+|-----|-------|--------|
+| P0–P6 | Fondations, charge Tesla, providers, agents, carte, hébergements, PWA, CI/CD | ✅ mergé |
+| M1 | **Profil Foyer éditable & versionné** (IndexedDB, consommé par le planificateur) | ✅ |
+
+**Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
+copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
+(`ProfileSettings`), et **versionné** — chaque enregistrement incrémente `version`
+et horodate `updatedAt`. La logique pure vit dans `src/lib/profile/profile.ts`
+(testée), la persistance dans `src/lib/db.ts` (`loadActiveProfile`,
+`saveProfilePatch`). Le `profileId` actif est transmis à `/api/agents/plan` et
+estampillé sur le `TripPlan` généré. *Prochaine étape : injecter chaque champ du
+profil dans le moteur de contraintes (M4/M5) plutôt que les constantes de référence.*
+
 ## Commandes essentielles
 
 ```bash

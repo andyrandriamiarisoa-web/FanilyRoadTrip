@@ -1,0 +1,56 @@
+import type { FamilyProfile } from "@/types"
+
+/**
+ * Profil Foyer de référence (Annexe A / §4 du brief).
+ *
+ * Sert de graine au premier lancement : il est copié dans IndexedDB puis
+ * devient éditable et versionné. Les valeurs reflètent les contraintes
+ * réelles du foyer (Tesla Model S Raven, bébé 6 mois, spondylarthrite,
+ * télétravail lun–jeu).
+ *
+ * Toute heure est exprimée en heures décimales (8.5 = 8h30).
+ */
+export const DEFAULT_FAMILY_PROFILE: FamilyProfile = {
+  id: "famille-default",
+  name: "Profil foyer",
+  version: 1,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  vehicle: {
+    model: "Tesla Model S Raven",
+    usableKwh: 95,
+    baseConsumptionWh100km: 17500,
+    highwayFactor: 1.25,
+    heatFactor: 1.1,
+    maxChargingKw: 250,
+    bufferSoc: 0.12,
+    targetChargeSoc: 0.8,
+    startChargeSoc: 0.9,
+  },
+  medical: {
+    requiresFirmMattress: true,
+    acRequired: true,
+  },
+  baby: {
+    ageMonths: 6,
+    maxLegMinutes: 120,
+    noDrivingHours: [12, 16],
+    requiresParasolBed: true,
+    requiresAcInAccommodation: true,
+  },
+  work: {
+    workDays: ["monday", "tuesday", "wednesday", "thursday"],
+    workStartHour: 8.5,
+    workEndHour: 19,
+    requiresDeskCm: 120,
+    requiresFiber: true,
+    fallback5G: true,
+    lateCheckoutHour: 11,
+  },
+  driving: {
+    maxSegmentMinutes: 140,
+    noHeatDrivingRange: [12, 16],
+    preferredDrivingWindows: [{ after: 19, before: 22 }],
+  },
+  avoidLargeUrbanCores: true,
+  preferPeripheryWithTransport: true,
+}

@@ -106,6 +106,10 @@ export type FixedEvent = z.infer<typeof FixedEventSchema>
 export const FamilyProfileSchema = z.object({
   id: z.string(),
   name: z.string(),
+  /** Incremented on every saved edit (versionné dans la base). */
+  version: z.number().int().positive(),
+  /** ISO timestamp of the last save. */
+  updatedAt: z.string(),
   vehicle: VehicleProfileSchema,
   medical: MedicalConstraintsSchema,
   baby: BabyConstraintsSchema,
