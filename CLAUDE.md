@@ -18,6 +18,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M8c | **Import des réservations** (extraction mock-first/IA, agrégation dans l'itinéraire) | ✅ |
 | M9a | **Export calendrier** (.ics RFC 5545 — événements fixes, nuitées, réservations) | ✅ |
 | M9b | **Collaboration** (vote d'activités par approbation, sondage fusionnable & partageable par URL) | ✅ |
+| M9c | **Robustesse hors-ligne** (indicateur de connexion live, fonctions disponibles offline) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -130,6 +131,14 @@ page fusionne les votes reçus à l'ouverture. Persistance Dexie v6. UI
 `/collaboration` (`ActivityVote`) : prénom → approbation, décompte trié avec
 votants, ajout d'activités, copie du lien de vote. *Prochaine étape : robustesse
 hors-ligne (M9c).*
+
+**Robustesse hors-ligne (M9c)** : socle PWA déjà en place (Serwist précache,
+tuiles OSM cache-first, IndexedDB). Ajout d'une **conscience hors-ligne** :
+`src/lib/offline/offline.ts` (pur) décrit honnêtement ce qui reste consultable
+sans réseau (carnet, budget, bagages, réservations, vote, cartes SVG) vs.
+online-only (IA, tuiles HD). `OfflineIndicator` (via `useSyncExternalStore` sur
+`navigator.onLine`) affiche un bandeau hors-ligne ; la page `/offline` liste les
+fonctions disponibles. *Prochaine étape : finitions a11y/perf/sécurité (M10).*
 
 ## Commandes essentielles
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OFFLINE_FEATURES } from "@/lib/offline/offline";
 
 export const metadata: Metadata = {
   title: "Hors ligne",
@@ -63,6 +64,20 @@ export default function OfflinePage() {
       >
         Consulter le carnet
       </a>
+
+      <div className="card p-4 w-full max-w-xs text-left space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          Disponible hors-ligne
+        </p>
+        <ul className="space-y-1">
+          {OFFLINE_FEATURES.map((f) => (
+            <li key={f.key} className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+              <span aria-hidden="true" style={{ color: "var(--accent-success)" }}>✓</span>
+              {f.label}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
