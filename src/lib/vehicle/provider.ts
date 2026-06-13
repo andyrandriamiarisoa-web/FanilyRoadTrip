@@ -12,6 +12,10 @@
 import type { VehicleProvider } from "./types"
 import { MockVehicleProvider } from "./mock-provider"
 import { TeslaVehicleProvider } from "./tesla-provider"
+import { CachingVehicleProvider } from "./cache"
+
+/** TTL du cache d'état véhicule (secondes) ; défaut 5 min pour plafonner le coût Fleet API. */
+const DEFAULT_STATE_CACHE_TTL_SECONDS = 300
 
 export function getVehicleProvider(): VehicleProvider {
   const isLive = process.env.NEXT_PUBLIC_APP_MODE === "live"
@@ -19,11 +23,18 @@ export function getVehicleProvider(): VehicleProvider {
   const accessToken = process.env.TESLA_ACCESS_TOKEN
 
   if (isLive && apiBase && accessToken) {
-    return new TeslaVehicleProvider({ apiBase, accessToken })
+    // Cache TTL devant la Fleet API : chaque lecture est facturée, on en
+    // limite donc le nombre (au plus une par véhicule et par fenêtre).
+    const ttlSec = Number(process.env.TESLA_STATE_CACHE_TTL_SECONDS) || DEFAULT_STATE_CACHE_TTL_SECONDS
+    return new CachingVehicleProvider(new TeslaVehicleProvider({ apiBase, accessToken }), {
+      ttlMs: Math.max(0, ttlSec) * 1_000,
+    })
   }
+  // Le mock est gratuit et déterministe : pas de cache (préserve les tests).
   return new MockVehicleProvider()
 }
 
 export { MockVehicleProvider } from "./mock-provider"
 export { TeslaVehicleProvider } from "./tesla-provider"
+export { CachingVehicleProvider } from "./cache"
 export * from "./types"

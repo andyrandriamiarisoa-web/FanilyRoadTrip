@@ -185,7 +185,16 @@ NEXT_PUBLIC_APP_MODE    # "mock" | "live" (défaut: "mock")
 TESLA_FLEET_API_BASE    # Base Fleet API régionale (optionnel → VehicleProvider mock)
 TESLA_ACCESS_TOKEN      # Jeton d'accès Fleet API, serveur uniquement (optionnel)
 TESLA_PUBLIC_KEY_PEM    # Clé publique de domaine servie sous /.well-known (optionnel)
+TESLA_STATE_CACHE_TTL_SECONDS  # TTL du cache d'état véhicule (défaut 300) — plafonne le coût Fleet API
 ```
+
+**Coût Fleet API (Tesla)** : la Fleet API facture chaque lecture `vehicle_data`
+et tout appel de statut < 500 (un sondage à la minute ≈ 10 $/mois/véhicule ;
+remise de 10 $/mois par compte). `CachingVehicleProvider` (`src/lib/vehicle/cache.ts`)
+met en cache liste + état pendant `TESLA_STATE_CACHE_TTL_SECONDS` (défaut 5 min) :
+au plus **une lecture facturable par véhicule et par fenêtre**, quel que soit le
+nombre de recalculs d'itinéraire. Aucun réveil (`wake_up`), aucune relance sur
+erreur facturable. Le `readAt` reste honnête (fraîcheur affichée).
 
 ## Structure clé
 
