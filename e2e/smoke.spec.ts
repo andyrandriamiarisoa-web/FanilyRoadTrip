@@ -107,7 +107,7 @@ test("theme toggle switches between dark and light", async ({ page }) => {
 // Navigation — all main routes respond 200
 // ---------------------------------------------------------------------------
 
-const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline", "/lieux"]
+const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline", "/lieux", "/hebergements"]
 
 for (const route of MAIN_ROUTES) {
   test(`route ${route} responds 200`, async ({ request }) => {
@@ -438,6 +438,28 @@ test("télétravail — un jour travaillé affiche les deux pistes (coworking + 
   await page.getByRole("button", { name: /télétravail/i }).first().click()
   await expect(page.getByText(/Andy : coworking/i)).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/Famille : plan de visites/i)).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// Disponibilité hébergements (R5)
+// ---------------------------------------------------------------------------
+
+test("hébergements — recherche dispo mock, classée, source affichée, sans réservation", async ({
+  page,
+}) => {
+  await page.goto("/hebergements")
+  await expect(page.getByRole("heading", { name: /disponibilités hébergements/i })).toBeVisible()
+
+  // Recherche par défaut (Marseille 7–9/08/2026).
+  await page.getByRole("button", { name: /rechercher les disponibilités/i }).click()
+
+  // Des établissements apparaissent avec une source affichée (anti-pattern #3).
+  await expect(page.getByText(/source : mock/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/Marseille/i).first()).toBeVisible()
+
+  // Aucune action de réservation exposée (read-only strict).
+  await expect(page.getByRole("button", { name: /réserver|booking|payer/i })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: /réserver|booking/i })).toHaveCount(0)
 })
 
 // ---------------------------------------------------------------------------

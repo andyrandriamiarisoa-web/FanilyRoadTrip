@@ -26,6 +26,8 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | R2 | **Ingestion POI ouverts** (Overture/Foursquare, seed normalisé Zod, requêtable hors-ligne, horaires partiels signalés) | ✅ |
 | R3 | **Recherche lieux & horaires** (`/lieux`, classement par proximité sans exclusion, source affichée) | ✅ |
 | R4 | **Orchestration jours de télétravail** (coworking prioritaire + plan visites famille bébé/canicule-aware) | ✅ |
+| R5 | **Adaptateur disponibilité hôtels** (`LodgingAvailabilityProvider`, mock-first + Amadeus live, read-only, cache, classement sans exclusion) | ✅ |
+| R6 | **Ménage & doc** (env Amadeus, `TESLA_ACCESS_TOKEN` dev-only, `CLAUDE.md`/`.env.example` à jour) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -187,6 +189,26 @@ ouverts (R2). Intégré au carnet (`WorkationTracks` dans `RoadbookClient`) : de
 pistes parallèles « Andy : coworking » / « Famille : plan de visites ».
 *Prochaine étape : adaptateur dispo hôtels (R5), ménage & doc (R6).*
 
+**Disponibilité hôtels (R5)** : adaptateur `LodgingAvailabilityProvider`
+(`src/lib/lodging/availability/`) sur le patron de `VehicleProvider` —
+**mock-first** (`MockLodgingAvailabilityProvider`, déterministe, hors-ligne) +
+**Amadeus** Self-Service en live (OAuth2 client credentials, Hotel Search,
+**read-only strict** : aucune réservation/paiement). Fabrique serveur
+`getLodgingAvailabilityProvider()` + `searchAvailabilityWithFallback` (repli mock
+honnête si quota/panne) ; cache TTL (`CachingLodgingAvailabilityProvider`,
+`LODGING_AVAILABILITY_TTL_SECONDS`, défaut 10 min) pour préserver le quota
+gratuit. **Classer sans exclure** : `rankOffers` met les disponibles en tête
+(prix croissant) et **conserve les complets** (signalés). Source + fraîcheur
+(`readAt`) toujours affichées. API `/api/lodging/availability` ; UI
+`/hebergements` (`LodgingAvailabilitySearch`). Tests : mock déterministe, repli,
+cache, anti-pattern #1. *Reste : Airbnb hors périmètre (aucune API libre).*
+
+**Ménage & doc (R6)** : `.env.example` mis à jour (Amadeus, LiteAPI optionnel,
+TTL dispo) ; `TESLA_ACCESS_TOKEN` marqué **dev-only** (redondant avec l'OAuth —
+à retirer de Vercel, action ops hors dépôt). `CLAUDE.md` reflète les décisions
+R1→R6. *Note : l'activation « Allow auto-merge » + « Auto-delete head branches »
+est un réglage dépôt GitHub (hors code) — à cocher dans Settings → General.*
+
 **Principe d'architecture (handoff R1→R6)** : l'IA **orchestre**, l'app
 **vérifie**. On sépare la donnée *quasi-statique* (lieux, horaires, adresses →
 jeux de données ouverts ingérés, servis hors-ligne) de la donnée *temps réel*
@@ -237,6 +259,10 @@ npm run verify       # Pipeline qualité complet
 ANTHROPIC_API_KEY       # Claude API (optionnel → mode MOCK)
 OPENCHARGEMAP_API_KEY   # Open Charge Map (optionnel → seed)
 NEXT_PUBLIC_APP_MODE    # "mock" | "live" (défaut: "mock")
+AMADEUS_CLIENT_ID       # Dispo hôtels R5 (optionnel → mock), serveur uniquement
+AMADEUS_CLIENT_SECRET   # Dispo hôtels R5, serveur uniquement
+LITEAPI_KEY             # Dispo hôtels — alternative (optionnel)
+LODGING_AVAILABILITY_TTL_SECONDS  # TTL cache dispo hôtels (défaut 600)
 TESLA_CLIENT_ID         # OAuth Fleet API (flux authorization_code) — voir docs/TESLA.md
 TESLA_CLIENT_SECRET     # OAuth Fleet API, serveur uniquement
 TESLA_REDIRECT_URI      # .../api/tesla/callback (enregistrée côté Tesla Developer)

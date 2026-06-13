@@ -73,6 +73,15 @@ function IconVote() {
   );
 }
 
+function IconHebergements() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M3 20V8l9-5 9 5v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 20h18M9 20v-5h6v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconLieux() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -124,6 +133,7 @@ interface NavItem {
 
 const SECONDARY_ITEMS: NavItem[] = [
   { href: "/lieux",         label: "Lieux",          icon: <IconLieux />,         matchPrefix: "/lieux" },
+  { href: "/hebergements",  label: "Hébergements",   icon: <IconHebergements />,  matchPrefix: "/hebergements" },
   { href: "/bagages",       label: "Bagages",        icon: <IconBagages />,       matchPrefix: "/bagages" },
   { href: "/reservations",  label: "Réservations",   icon: <IconReservations />,  matchPrefix: "/reservations" },
   { href: "/collaboration", label: "Vote activités", icon: <IconVote />,          matchPrefix: "/collaboration" },
