@@ -9,7 +9,6 @@ export default function HomePage() {
   return (
     <div
       className="flex flex-col items-center justify-center flex-1 p-6 gap-8 text-center"
-      style={{ minHeight: "calc(100dvh - 36px)" }}
     >
       {/* Hero */}
       <div className="space-y-4 max-w-md">
@@ -45,18 +44,6 @@ export default function HomePage() {
           Générer le voyage de référence
         </Link>
       </div>
-
-      <nav
-        className="flex flex-wrap justify-center gap-2.5 max-w-lg w-full"
-        aria-label="Navigation principale"
-      >
-        {NAV_TABS.map((tab) => (
-          <Link key={tab.href} href={tab.href} className="nav-tab">
-            <span aria-hidden="true">{tab.icon}</span>
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
 
       {/* Features grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl w-full mt-4">
@@ -95,15 +82,6 @@ export default function HomePage() {
     </div>
   );
 }
-
-const NAV_TABS = [
-  { href: "/carnet", label: "Carnet", icon: "📒" },
-  { href: "/budget", label: "Budget", icon: "💶" },
-  { href: "/bagages", label: "Bagages", icon: "🧳" },
-  { href: "/reservations", label: "Réservations", icon: "📌" },
-  { href: "/collaboration", label: "Vote activités", icon: "🗳️" },
-  { href: "/parametres", label: "Paramètres", icon: "⚙️" },
-];
 
 const FEATURES = [
   { icon: "⚡", label: "Recharges Tesla" },
