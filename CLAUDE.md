@@ -14,6 +14,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M6 | **Hébergements & workation** (conformité bureau/clim/5G/matelas, classement sans exclusion) | ✅ |
 | M7 | **Génération IA** (API Anthropic `claude-sonnet-4-6`, forced tool use → JSON validé Zod, mock-first) | ✅ |
 | M8a | **Budget & dépenses** (ventilation par poste, découpage entre voyageurs, règlements minimaux) | ✅ |
+| M8b | **Listes de bagages** bébé-aware (durée/saison, quantités échelonnées, checklist persistante) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -92,6 +93,14 @@ et **découpage entre voyageurs** façon Lambus (`travelerBalances` + `settleBal
 (`expenses`, `budgetSettings`). UI `/budget` (`BudgetManager`) : ajout de dépense
 (poste, payeur, partage), barres de ventilation, soldes par voyageur et règlements
 suggérés. *Prochaine étape : listes de bagages bébé-aware, puis import des réservations.*
+
+**Listes de bagages (M8b)** : générateur pur `src/lib/packing/packing.ts`
+(déterministe) adapté à **la durée, la saison et le bébé** — quantités
+échelonnées (couches = jours × 6, jeux de vêtements plafonnés à 7), sections
+conditionnelles (bébé < 36 mois, été/hiver, workation, Tesla). Clés d'article
+stables pour mémoriser le cochage. UI `/bagages` (`PackingList`) : config
+durée/mois (saison dérivée), checklist groupée par catégorie avec progression,
+état persisté en IndexedDB (Dexie v4). *Prochaine étape : import des réservations (M8c).*
 
 ## Commandes essentielles
 
