@@ -5,11 +5,18 @@
  * pour valider le domaine du tiers. La clé est fournie via la variable
  * d'environnement `TESLA_PUBLIC_KEY_PEM` (jamais commitée). Sans clé → 404,
  * ce qui est correct en mode MOCK (aucune intégration Tesla active).
+ *
+ * La valeur est **normalisée** avant d'être servie : une variable d'env collée
+ * depuis un mobile perd souvent les retours à la ligne du PEM, ce qui faisait
+ * échouer Tesla en « Invalid EC public key ». On reconstruit un PEM canonique.
  */
+import { normalizePublicKeyPem } from "@/lib/vehicle/pem"
+
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 export function GET() {
-  const pem = process.env.TESLA_PUBLIC_KEY_PEM
+  const pem = normalizePublicKeyPem(process.env.TESLA_PUBLIC_KEY_PEM)
   if (!pem) {
     return new Response("Not found", { status: 404 })
   }
