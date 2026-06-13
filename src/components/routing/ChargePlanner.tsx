@@ -7,8 +7,12 @@ import { REFERENCE_TRIP_REQUEST } from "@/data/voyage-reference";
 import type { RoutePlanResult } from "@/lib/routing/types";
 import { timelineFromLegs, formatHour } from "@/lib/constraints/fusion";
 import type { TimelineEvent, TimelineResult } from "@/lib/constraints/types";
+import type { HeatAlert } from "@/lib/constraints/heat-alert";
 
 type SocSource = "target" | "live";
+
+/** Date utilisée pour interroger la couche météo (vigilance chaleur). */
+const HEAT_DATE = REFERENCE_TRIP_REQUEST.departureFrom;
 
 const ORIGIN = {
   name: REFERENCE_TRIP_REQUEST.origin,
@@ -25,12 +29,13 @@ export function ChargePlanner() {
   const [socSource, setSocSource] = useState<SocSource>("target");
   const [startSoc, setStartSoc] = useState(90);
   const [targetArrival, setTargetArrival] = useState(20);
-  const [heatwave, setHeatwave] = useState(false);
+  const [forceHeat, setForceHeat] = useState(false);
   const [departureHour, setDepartureHour] = useState(8);
   const [workDay, setWorkDay] = useState(false);
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<RoutePlanResult | null>(null);
   const [timeline, setTimeline] = useState<TimelineResult | null>(null);
+  const [heatAlert, setHeatAlert] = useState<HeatAlert | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [socNote, setSocNote] = useState<string | null>(null);
 
@@ -52,30 +57,72 @@ export function ChargePlanner() {
     return { pct: data.state.soc, source: "live" };
   }
 
+  async function planRoute(pct: number, source: SocSource, isHeatwave: boolean): Promise<RoutePlanResult> {
+    const res = await fetch("/api/route/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origin: ORIGIN,
+        destination: DESTINATION,
+        startSocPct: pct,
+        startSocSource: source,
+        targetArrivalSocPct: targetArrival,
+        isHeatwave,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error ?? "Calcul impossible");
+    return data.plan as RoutePlanResult;
+  }
+
+  /**
+   * Alerte chaleur auto-détectée depuis la couche météo (origine + destination
+   * + arrêts de charge). Le blocage 12h–16h n'est PAS systématique : il dépend
+   * d'une vigilance chaleur réelle. Renvoie null si la météo est indisponible.
+   */
+  async function detectHeatAlert(routePlan: RoutePlanResult): Promise<HeatAlert | null> {
+    const points = [
+      { name: ORIGIN.name, lat: ORIGIN.lat, lng: ORIGIN.lng },
+      { name: DESTINATION.name, lat: DESTINATION.lat, lng: DESTINATION.lng },
+      ...routePlan.chargeStops.map((s) => ({ name: s.superchargerName, lat: s.lat, lng: s.lng })),
+    ];
+    try {
+      const res = await fetch("/api/weather", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: HEAT_DATE, points }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) return data.heatAlert as HeatAlert;
+    } catch {
+      // Météo indisponible → on s'en tient au réglage manuel, sans bloquer.
+    }
+    return null;
+  }
+
   async function compute() {
     setLoading(true);
     setError(null);
     setSocNote(null);
+    setHeatAlert(null);
     try {
       const { pct, source } = await resolveStartSoc();
-      const res = await fetch("/api/route/plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          origin: ORIGIN,
-          destination: DESTINATION,
-          startSocPct: pct,
-          startSocSource: source,
-          targetArrivalSocPct: targetArrival,
-          isHeatwave: heatwave,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "Calcul impossible");
-      const routePlan = data.plan as RoutePlanResult;
+
+      // 1) Plan initial (canicule = réglage manuel s'il est forcé).
+      let routePlan = await planRoute(pct, source, forceHeat);
+
+      // 2) Vigilance chaleur réelle sur le trajet (météo par segment).
+      const alert = await detectHeatAlert(routePlan);
+      setHeatAlert(alert);
+      const effectiveHeat = forceHeat || (alert?.active ?? false);
+
+      // 3) Si la canicule est auto-détectée, replanifier avec la surconsommation.
+      if (effectiveHeat !== forceHeat) {
+        routePlan = await planRoute(pct, source, effectiveHeat);
+      }
       setPlan(routePlan);
 
-      // Fusion des contraintes (M5) : pauses bébé, canicule, télétravail.
+      // 4) Fusion des contraintes (M5) : pauses bébé, canicule (conditionnelle), télétravail.
       const profile = await loadActiveProfile();
       const legs = routePlan.segments.map((seg, i) => ({
         driveMinutes: seg.durationMinutes,
@@ -87,7 +134,7 @@ export function ChargePlanner() {
         timelineFromLegs(legs, {
           departureHour,
           maxLegMinutes: profile.baby.maxLegMinutes,
-          isHeatwave: heatwave,
+          isHeatwave: effectiveHeat,
           heatWindow: profile.baby.noDrivingHours,
           isWorkDay: workDay,
           workWindow: [profile.work.workStartHour, profile.work.workEndHour],
@@ -147,17 +194,23 @@ export function ChargePlanner() {
         onChange={setDepartureHour}
       />
 
-      <label className="flex items-center justify-between gap-3 cursor-pointer">
-        <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-          Conduite en canicule (blocage 12h–16h + surconsommation)
-        </span>
-        <input
-          type="checkbox"
-          checked={heatwave}
-          onChange={(e) => setHeatwave(e.target.checked)}
-          className="h-5 w-5 accent-[var(--accent-amber)]"
-        />
-      </label>
+      <div className="space-y-1">
+        <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+            Forcer la vigilance canicule (simulation)
+          </span>
+          <input
+            type="checkbox"
+            checked={forceHeat}
+            onChange={(e) => setForceHeat(e.target.checked)}
+            className="h-5 w-5 accent-[var(--accent-amber)]"
+          />
+        </label>
+        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          Par défaut, le blocage 12h–16h s&apos;applique uniquement si la météo signale
+          une vigilance chaleur sur le trajet. Aucune alerte → conduite libre.
+        </p>
+      </div>
 
       <label className="flex items-center justify-between gap-3 cursor-pointer">
         <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
@@ -186,9 +239,40 @@ export function ChargePlanner() {
         </p>
       )}
 
+      {heatAlert && <HeatAlertBanner alert={heatAlert} />}
       {plan && <PlanView plan={plan} />}
       {timeline && <TimelineView timeline={timeline} />}
     </section>
+  );
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  seed: "indicatif (seed)",
+  estimated: "estimé",
+  verified: "vérifié (météo live)",
+};
+
+function HeatAlertBanner({ alert }: { alert: HeatAlert }) {
+  const active = alert.active;
+  return (
+    <div
+      className="text-xs p-2.5 rounded-lg space-y-1"
+      role="status"
+      style={{
+        background: active ? "var(--accent-warning)" : "var(--bg-surface)",
+        color: active ? "var(--text-on-amber)" : "var(--text-primary)",
+      }}
+    >
+      <p className="font-medium">
+        <span aria-hidden="true">{active ? "🌡️ " : "✓ "}</span>
+        {alert.reason}
+      </p>
+      {alert.sourceStatus && (
+        <p style={{ color: active ? "var(--text-on-amber)" : "var(--text-secondary)" }}>
+          Source météo : {SOURCE_LABELS[alert.sourceStatus] ?? alert.sourceStatus}
+        </p>
+      )}
+    </div>
   );
 }
 

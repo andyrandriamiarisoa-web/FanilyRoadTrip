@@ -22,6 +22,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M10a | **Audit a11y automatisé** (axe-core sur toutes les pages clés, zéro violation critique) | ✅ |
 | M10b | **Durcissement sécurité** (en-têtes HTTP CSP/HSTS/…, posture tokens documentée `SECURITY.md`) | ✅ |
 | M10c | **Documentation utilisateur** (`docs/GUIDE.md`, README à jour) — roadmap M0–M10 complète | ✅ |
+| R1 | **Corrections** : home sans itinéraire codé en dur · blocage 12h–16h conditionnel à une vigilance chaleur réelle | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -142,6 +143,27 @@ sans réseau (carnet, budget, bagages, réservations, vote, cartes SVG) vs.
 online-only (IA, tuiles HD). `OfflineIndicator` (via `useSyncExternalStore` sur
 `navigator.onLine`) affiche un bandeau hors-ligne ; la page `/offline` liste les
 fonctions disponibles. *Prochaine étape : finitions a11y/perf/sécurité (M10).*
+
+**Corrections R1** : (1) la page d'accueil n'affiche plus d'itinéraire codé en
+dur (Fresnes ↔ Marseille) — un état neutre « Comment ça marche » la remplace.
+(2) Le blocage de conduite **12h–16h n'est plus systématique** : il est
+**conditionnel à une vigilance chaleur réelle**. Module pur
+`src/lib/constraints/heat-alert.ts` (`deriveHeatAlert`, testé) déduit l'alerte
+d'un ensemble de relevés (origine + destination + arrêts) ; route serveur
+`/api/weather` interroge la couche météo (seed en MOCK, Open-Meteo en LIVE) sans
+clé ni appel client (CSP préservée). `ChargePlanner` auto-détecte la canicule sur
+le trajet, replanifie avec la surconsommation le cas échéant, et affiche
+honnêtement la raison + la source ; pas d'alerte → conduite libre 12h–16h. Une
+case « Forcer la vigilance canicule » permet de simuler. *Prochaine étape :
+ingestion des POI ouverts (R2).*
+
+**Principe d'architecture (handoff R1→R6)** : l'IA **orchestre**, l'app
+**vérifie**. On sépare la donnée *quasi-statique* (lieux, horaires, adresses →
+jeux de données ouverts ingérés, servis hors-ligne) de la donnée *temps réel*
+(dispo + prix hôtels → API à palier gratuit derrière un adaptateur, read-only,
+mock-first). `sourceStatus` : `seed` = pré-embarqué (jeu ouvert / seed),
+`estimated` = calculé par l'app, `verified` = récupéré en direct au moment de la
+requête.
 
 ## Commandes essentielles
 

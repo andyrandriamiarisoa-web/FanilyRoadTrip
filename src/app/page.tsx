@@ -52,22 +52,31 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Route overview */}
+      {/* Comment ça marche — état neutre, sans itinéraire codé en dur */}
       <div
-        className="card-warm p-5 max-w-md w-full text-left space-y-2"
-        aria-label="Voyage de référence"
+        className="card-warm p-5 max-w-md w-full text-left space-y-3"
+        aria-label="Comment ça marche"
       >
         <p className="font-bold text-sm" style={{ color: "var(--text-muted)" }}>
-          VOYAGE DE RÉFÉRENCE
+          COMMENT ÇA MARCHE
         </p>
-        <p className="font-semibold" style={{ color: "var(--text-on-card-warm)" }}>
-          Fresnes (94) ↔ Marseille
-        </p>
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          31 juillet – 14 août 2026 · Mariage le 8 août · 2 jours à Dijon
-        </p>
+        <ol className="space-y-2">
+          {STEPS.map((step, i) => (
+            <li key={step} className="flex items-start gap-3">
+              <span
+                className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
+                style={{ background: "var(--accent-amber)", color: "var(--text-on-amber)" }}
+                aria-hidden="true"
+              >
+                {i + 1}
+              </span>
+              <span className="text-sm" style={{ color: "var(--text-on-card-warm)" }}>
+                {step}
+              </span>
+            </li>
+          ))}
+        </ol>
         <div className="flex gap-2 flex-wrap pt-1">
-          <span className="badge-verified">Données vérifiées</span>
           <span
             className="text-xs px-2 py-0.5 rounded-full"
             style={{
@@ -75,13 +84,19 @@ export default function HomePage() {
               color: "var(--text-muted)",
             }}
           >
-            Mode MOCK disponible
+            Fonctionne hors-ligne · Mode MOCK disponible
           </span>
         </div>
       </div>
     </div>
   );
 }
+
+const STEPS = [
+  "Composez votre itinéraire : étapes, dates et événements fixes.",
+  "L'app vérifie les recharges Tesla, la météo, les hébergements et vos jours de télétravail.",
+  "Suivez votre carnet de route détaillé, même sans connexion.",
+];
 
 const FEATURES = [
   { icon: "⚡", label: "Recharges Tesla" },
