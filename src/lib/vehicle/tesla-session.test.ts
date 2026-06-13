@@ -3,6 +3,8 @@ import {
   encryptSession,
   decryptSession,
   ensureFreshSession,
+  createSignedState,
+  verifySignedState,
   type TeslaSession,
 } from "./tesla-session"
 
@@ -45,6 +47,42 @@ describe("tesla-session — chiffrement", () => {
 
   it("renvoie null sur une entrée qui n'est pas une session", () => {
     expect(decryptSession("pas-du-base64-valide!!", SECRET)).toBeNull()
+  })
+})
+
+describe("tesla-session — state OAuth signé", () => {
+  it("un state fraîchement signé est valide", () => {
+    const state = createSignedState(SECRET)
+    expect(state).toBeTypeOf("string")
+    expect(verifySignedState(state, { secret: SECRET })).toBe(true)
+  })
+
+  it("rejette un state altéré", () => {
+    const state = createSignedState(SECRET)!
+    const tampered = state.slice(0, -2) + (state.endsWith("AA") ? "BB" : "AA")
+    expect(verifySignedState(tampered, { secret: SECRET })).toBe(false)
+  })
+
+  it("rejette un state signé avec un autre secret", () => {
+    const state = createSignedState("un-autre-secret-xxxxxxxxxxxxxxxx")!
+    expect(verifySignedState(state, { secret: SECRET })).toBe(false)
+  })
+
+  it("rejette un state expiré (> 15 min)", () => {
+    const state = createSignedState(SECRET)!
+    const future = () => Date.now() + 16 * 60 * 1000
+    expect(verifySignedState(state, { secret: SECRET, now: future })).toBe(false)
+  })
+
+  it("rejette une entrée vide ou malformée", () => {
+    expect(verifySignedState(null, { secret: SECRET })).toBe(false)
+    expect(verifySignedState("", { secret: SECRET })).toBe(false)
+    expect(verifySignedState("a.b", { secret: SECRET })).toBe(false)
+  })
+
+  it("renvoie null/false sans secret (jamais bloquant)", () => {
+    expect(createSignedState("")).toBeNull()
+    expect(verifySignedState("x.y.z", { secret: "" })).toBe(false)
   })
 })
 

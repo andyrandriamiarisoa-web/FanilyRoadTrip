@@ -5,18 +5,19 @@ import {
   getTeslaOAuthConfig,
 } from "@/lib/vehicle/tesla-oauth"
 import {
-  TESLA_OAUTH_STATE_COOKIE,
   TESLA_SESSION_COOKIE,
   TESLA_SESSION_MAX_AGE_SECONDS,
   encryptSession,
   sessionCookieOptions,
+  verifySignedState,
   type TeslaSession,
 } from "@/lib/vehicle/tesla-session"
 
 /**
- * URI de redirection OAuth Tesla. Valide le `state`, échange le `code` contre
- * des jetons, découvre la base régionale, chiffre la session dans un cookie
- * httpOnly, puis renvoie l'utilisateur vers /parametres avec un statut clair.
+ * URI de redirection OAuth Tesla. Vérifie le `state` **signé** (HMAC, sans
+ * cookie), échange le `code` contre des jetons, découvre la base régionale,
+ * chiffre la session dans un cookie httpOnly, puis renvoie l'utilisateur vers
+ * /parametres avec un statut clair.
  */
 export const runtime = "nodejs"
 
@@ -32,16 +33,12 @@ export async function GET(req: NextRequest) {
   const config = getTeslaOAuthConfig()
   const code = url.searchParams.get("code")
   const state = url.searchParams.get("state")
-  const expectedState = req.cookies.get(TESLA_OAUTH_STATE_COOKIE)?.value
 
-  const fail = (reason: string) => {
-    const res = NextResponse.redirect(redirectToSettings(url.origin, "error", reason))
-    res.cookies.delete(TESLA_OAUTH_STATE_COOKIE)
-    return res
-  }
+  const fail = (reason: string) =>
+    NextResponse.redirect(redirectToSettings(url.origin, "error", reason))
 
   if (!config) return fail("config")
-  if (!code || !state || !expectedState || state !== expectedState) return fail("state")
+  if (!code || !verifySignedState(state)) return fail("state")
 
   try {
     const tokens = await exchangeCodeForTokens({ code, config })
@@ -59,7 +56,6 @@ export async function GET(req: NextRequest) {
       encrypted,
       sessionCookieOptions(TESLA_SESSION_MAX_AGE_SECONDS),
     )
-    res.cookies.delete(TESLA_OAUTH_STATE_COOKIE)
     return res
   } catch (err) {
     console.error("[tesla/callback]", err instanceof Error ? err.message : err)
