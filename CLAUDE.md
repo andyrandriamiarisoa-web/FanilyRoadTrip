@@ -13,6 +13,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M5 | **Fusion des contraintes** (pauses bébé, blocage canicule 12h–16h, évitement télétravail, chronologie heure par heure) | ✅ |
 | M6 | **Hébergements & workation** (conformité bureau/clim/5G/matelas, classement sans exclusion) | ✅ |
 | M7 | **Génération IA** (API Anthropic `claude-sonnet-4-6`, forced tool use → JSON validé Zod, mock-first) | ✅ |
+| M8a | **Budget & dépenses** (ventilation par poste, découpage entre voyageurs, règlements minimaux) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -83,6 +84,14 @@ en cas d'erreur. Clé API serveur uniquement (`/api/agents/itinerary`). UI `/pla
 (`AiItineraryGenerator`) : description → brouillon **éditable** (titres + activités
 par jour), contraintes appliquées affichées, source (Claude/mock) indiquée.
 *Prochaine étape : budget, bagages, réservations (M8).*
+
+**Budget & dépenses (M8a)** : logique pure `src/lib/budget/budget.ts` (calculs en
+centimes) — total, **ventilation par poste**, comparaison budget cible / dépensé,
+et **découpage entre voyageurs** façon Lambus (`travelerBalances` + `settleBalances`
+= virements minimaux, centime résiduel réparti déterministe). Persistance Dexie v3
+(`expenses`, `budgetSettings`). UI `/budget` (`BudgetManager`) : ajout de dépense
+(poste, payeur, partage), barres de ventilation, soldes par voyageur et règlements
+suggérés. *Prochaine étape : listes de bagages bébé-aware, puis import des réservations.*
 
 ## Commandes essentielles
 
