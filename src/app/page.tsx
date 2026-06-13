@@ -46,50 +46,53 @@ export default function HomePage() {
         </Link>
       </div>
 
-      <div className="flex gap-6">
+      <nav
+        className="flex flex-wrap justify-center gap-x-6 gap-y-3 max-w-md w-full"
+        aria-label="Navigation principale"
+      >
         <Link
           href="/carnet"
-          className="text-sm font-medium underline underline-offset-4"
+          className="text-sm font-medium underline underline-offset-4 whitespace-nowrap"
           style={{ color: "var(--accent-vine-light)" }}
         >
           Voir le carnet
         </Link>
         <Link
           href="/budget"
-          className="text-sm font-medium underline underline-offset-4"
+          className="text-sm font-medium underline underline-offset-4 whitespace-nowrap"
           style={{ color: "var(--accent-vine-light)" }}
         >
           Budget
         </Link>
         <Link
           href="/bagages"
-          className="text-sm font-medium underline underline-offset-4"
+          className="text-sm font-medium underline underline-offset-4 whitespace-nowrap"
           style={{ color: "var(--accent-vine-light)" }}
         >
           Bagages
         </Link>
         <Link
           href="/reservations"
-          className="text-sm font-medium underline underline-offset-4"
+          className="text-sm font-medium underline underline-offset-4 whitespace-nowrap"
           style={{ color: "var(--accent-vine-light)" }}
         >
           Réservations
         </Link>
         <Link
           href="/collaboration"
-          className="text-sm font-medium underline underline-offset-4"
+          className="text-sm font-medium underline underline-offset-4 whitespace-nowrap"
           style={{ color: "var(--accent-vine-light)" }}
         >
           Vote activités
         </Link>
         <Link
           href="/parametres"
-          className="text-sm font-medium underline underline-offset-4"
+          className="text-sm font-medium underline underline-offset-4 whitespace-nowrap"
           style={{ color: "var(--text-secondary)" }}
         >
           Paramètres
         </Link>
-      </div>
+      </nav>
 
       {/* Features grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl w-full mt-4">
