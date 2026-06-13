@@ -23,6 +23,9 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M10b | **Durcissement sécurité** (en-têtes HTTP CSP/HSTS/…, posture tokens documentée `SECURITY.md`) | ✅ |
 | M10c | **Documentation utilisateur** (`docs/GUIDE.md`, README à jour) — roadmap M0–M10 complète | ✅ |
 | R1 | **Corrections** : home sans itinéraire codé en dur · blocage 12h–16h conditionnel à une vigilance chaleur réelle | ✅ |
+| R2 | **Ingestion POI ouverts** (Overture/Foursquare, seed normalisé Zod, requêtable hors-ligne, horaires partiels signalés) | ✅ |
+| R3 | **Recherche lieux & horaires** (`/lieux`, classement par proximité sans exclusion, source affichée) | ✅ |
+| R4 | **Orchestration jours de télétravail** (coworking prioritaire + plan visites famille bébé/canicule-aware) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -156,6 +159,33 @@ le trajet, replanifie avec la surconsommation le cas échéant, et affiche
 honnêtement la raison + la source ; pas d'alerte → conduite libre 12h–16h. Une
 case « Forcer la vigilance canicule » permet de simuler. *Prochaine étape :
 ingestion des POI ouverts (R2).*
+
+**POI ouverts (R2)** : couche de données *quasi-statique* ingérée depuis des
+jeux ouverts (Overture Maps + Foursquare OS Places) par bounding box, normalisée
+vers `PoiSchema` (`src/types`), validée Zod et **embarquée** (`src/data/poi.json`,
+35 lieux sur 8 villes d'étape). Interrogée **localement et hors-ligne** par
+`src/lib/poi/poi.ts` (pur, testé) : `poisNear` / `poisInCity` **classent par
+proximité sans jamais exclure** (anti-pattern #1) ; les horaires sont exposés
+quand connus, sinon `null` — **couverture partielle honnêtement signalée**
+(`openStateAt` renvoie `"unknown"`, jamais d'invention). Pipeline d'ingestion
+documenté dans `scripts/ingest-poi.md` (DuckDB + GeoParquet, conflation, GERS,
+mapping catégories). *Prochaine étape : adaptateur dispo hôtels (R5).*
+
+**Recherche lieux & horaires (R3)** : page `/lieux` (`PoiSearch`) — sélection
+d'une ville d'étape + types de lieux, résultats **classés par proximité** avec
+horaires du jour, adresse et **source affichée** (`sourceStatus` + Overture/
+Foursquare). Aucun filtre excluant ; consultable hors-ligne (données R2).
+
+**Orchestration télétravail (R4)** : moteur pur `src/lib/workation/day-plan.ts`
+(`planWorkationDay`, testé) — ne se déclenche que les **jours travaillés** du
+Profil Foyer (`weekdayOf`/`isWorkDay`). Deux pistes : (1) **coworking** à
+proximité, classé par distance + signaux de conformité (bureau/wifi/clim),
+**jamais exclu**, manques signalés ; (2) **plan de visites famille** dimensionné
+à la fenêtre de travail, respectant les pauses bébé et la **fenêtre canicule**
+(intérieur privilégié 12h–16h sous vigilance chaleur). Source unique : les POI
+ouverts (R2). Intégré au carnet (`WorkationTracks` dans `RoadbookClient`) : deux
+pistes parallèles « Andy : coworking » / « Famille : plan de visites ».
+*Prochaine étape : adaptateur dispo hôtels (R5), ménage & doc (R6).*
 
 **Principe d'architecture (handoff R1→R6)** : l'IA **orchestre**, l'app
 **vérifie**. On sépare la donnée *quasi-statique* (lieux, horaires, adresses →

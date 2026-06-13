@@ -73,6 +73,15 @@ function IconVote() {
   );
 }
 
+function IconLieux() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M12 21s-6-5.2-6-10a6 6 0 1112 0c0 4.8-6 10-6 10z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <circle cx="12" cy="11" r="2.2" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
 function IconParametres() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -114,6 +123,7 @@ interface NavItem {
 }
 
 const SECONDARY_ITEMS: NavItem[] = [
+  { href: "/lieux",         label: "Lieux",          icon: <IconLieux />,         matchPrefix: "/lieux" },
   { href: "/bagages",       label: "Bagages",        icon: <IconBagages />,       matchPrefix: "/bagages" },
   { href: "/reservations",  label: "Réservations",   icon: <IconReservations />,  matchPrefix: "/reservations" },
   { href: "/collaboration", label: "Vote activités", icon: <IconVote />,          matchPrefix: "/collaboration" },
