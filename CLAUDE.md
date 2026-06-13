@@ -19,6 +19,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M9a | **Export calendrier** (.ics RFC 5545 — événements fixes, nuitées, réservations) | ✅ |
 | M9b | **Collaboration** (vote d'activités par approbation, sondage fusionnable & partageable par URL) | ✅ |
 | M9c | **Robustesse hors-ligne** (indicateur de connexion live, fonctions disponibles offline) | ✅ |
+| M10a | **Audit a11y automatisé** (axe-core sur toutes les pages clés, zéro violation critique) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
