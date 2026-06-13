@@ -29,6 +29,8 @@ interface Draft {
   deskCm: number;
   fiber: boolean;
   fallback5G: boolean;
+  allowSharedOffice: boolean;
+  maxOfficeMinutes: number;
   maxSegmentMinutes: number;
   avoidLargeUrbanCores: boolean;
   preferPeripheryWithTransport: boolean;
@@ -49,6 +51,8 @@ function toDraft(p: FamilyProfile): Draft {
     deskCm: p.work.requiresDeskCm,
     fiber: p.work.requiresFiber,
     fallback5G: p.work.fallback5G,
+    allowSharedOffice: p.work.allowSharedOffice,
+    maxOfficeMinutes: p.work.maxOfficeMinutesSkateboard,
     maxSegmentMinutes: p.driving.maxSegmentMinutes,
     avoidLargeUrbanCores: p.avoidLargeUrbanCores,
     preferPeripheryWithTransport: p.preferPeripheryWithTransport,
@@ -74,6 +78,8 @@ function toPatch(d: Draft): ProfilePatch {
       requiresDeskCm: d.deskCm,
       requiresFiber: d.fiber,
       fallback5G: d.fallback5G,
+      allowSharedOffice: d.allowSharedOffice,
+      maxOfficeMinutesSkateboard: d.maxOfficeMinutes,
     },
     driving: {
       maxSegmentMinutes: d.maxSegmentMinutes,
@@ -271,6 +277,20 @@ export function ProfileSettings() {
           checked={draft.fallback5G}
           onChange={(v) => set("fallback5G", v)}
         />
+        <ToggleField
+          label="Autoriser un bureau partagé à proximité"
+          checked={draft.allowSharedOffice}
+          onChange={(v) => set("allowSharedOffice", v)}
+        />
+        {draft.allowSharedOffice && (
+          <NumberField
+            label="Distance max du bureau partagé (min en skateboard)"
+            value={draft.maxOfficeMinutes}
+            min={1}
+            max={60}
+            onChange={(v) => set("maxOfficeMinutes", v)}
+          />
+        )}
       </FieldGroup>
 
       <FieldGroup legend="Conduite & hébergement">

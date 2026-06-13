@@ -249,3 +249,21 @@ test("génération IA — propose un itinéraire structuré et éditable", async
   await firstTitle.fill("Ma journée personnalisée")
   await expect(firstTitle).toHaveValue("Ma journée personnalisée")
 })
+
+// ---------------------------------------------------------------------------
+// Bureau partagé à proximité — assouplit le late checkout (feature)
+// ---------------------------------------------------------------------------
+
+test("bureau partagé proche — satisfait le poste de travail et assouplit le late checkout", async ({
+  page,
+}) => {
+  // Génère le plan puis ouvre l'étape Dijon (coworking à 7 min en skateboard).
+  await page.goto("/plan")
+  await page.getByRole("button", { name: /générer le voyage/i }).click()
+  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
+  await page.getByRole("button", { name: /dijon/i }).first().click()
+
+  // Le bureau partagé est mentionné et le late checkout est assoupli.
+  await expect(page.getByText(/bureau partagé/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/assoupli/i).first()).toBeVisible()
+})

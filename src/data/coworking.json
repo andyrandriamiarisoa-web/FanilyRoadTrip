@@ -1,0 +1,43 @@
+[
+  {
+    "commune": "Dijon",
+    "name": "Coworking Dijon — Le Quartier Numérique",
+    "minutesBySkateboard": 7,
+    "hasFiber": true,
+    "hasAc": true,
+    "sourceStatus": "seed",
+    "verifyUrl": "https://www.leboncoin-coworking.example/dijon"
+  },
+  {
+    "commune": "Mâcon",
+    "name": "La Station — Espace partagé Mâcon",
+    "minutesBySkateboard": 9,
+    "hasFiber": true,
+    "hasAc": false,
+    "sourceStatus": "seed"
+  },
+  {
+    "commune": "Montélimar",
+    "name": "Coworking Montélimar Centre",
+    "minutesBySkateboard": 6,
+    "hasFiber": true,
+    "hasAc": true,
+    "sourceStatus": "seed"
+  },
+  {
+    "commune": "Marseille",
+    "name": "Coworking La Valentine",
+    "minutesBySkateboard": 8,
+    "hasFiber": true,
+    "hasAc": true,
+    "sourceStatus": "seed"
+  },
+  {
+    "commune": "Tain-l'Hermitage",
+    "name": "Bureau partagé Tain — Rive du Rhône",
+    "minutesBySkateboard": 14,
+    "hasFiber": true,
+    "hasAc": false,
+    "sourceStatus": "seed"
+  }
+]

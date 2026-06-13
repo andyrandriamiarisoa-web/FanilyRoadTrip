@@ -6,10 +6,16 @@
  */
 
 import { z } from "zod"
-import { SuperchargerSchema, LodgingOptionSchema, Coverage5GSchema } from "../src/types/index"
+import {
+  SuperchargerSchema,
+  LodgingOptionSchema,
+  Coverage5GSchema,
+  CoworkingSchema,
+} from "../src/types/index"
 import superchargersRaw from "../src/data/superchargers.json"
 import logementsRaw from "../src/data/logements.json"
 import coverageRaw from "../src/data/5g-coverage.json"
+import coworkingRaw from "../src/data/coworking.json"
 
 let hasError = false
 
@@ -44,6 +50,7 @@ console.log("Validating seed data...\n")
 validateArray("superchargers.json", superchargersRaw as unknown[], SuperchargerSchema)
 validateArray("logements.json", logementsRaw as unknown[], LodgingOptionSchema)
 validateArray("5g-coverage.json", coverageRaw as unknown[], Coverage5GSchema)
+validateArray("coworking.json", coworkingRaw as unknown[], CoworkingSchema)
 
 console.log("")
 

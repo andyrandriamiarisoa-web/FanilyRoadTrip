@@ -61,6 +61,14 @@ export const WorkConstraintsSchema = z.object({
   requiresFiber: z.boolean(),
   fallback5G: z.boolean(),
   lateCheckoutHour: z.number(),
+  /**
+   * Autorise un **bureau partagé / espace de coworking** à proximité du
+   * lieu de couchage comme alternative au poste de travail dans l'hébergement.
+   * S'il y en a un assez proche, la contrainte de late checkout est assouplie.
+   */
+  allowSharedOffice: z.boolean(),
+  /** Distance maximale d'un bureau partagé, en minutes de skateboard. */
+  maxOfficeMinutesSkateboard: z.number(),
 })
 export type WorkConstraints = z.infer<typeof WorkConstraintsSchema>
 
@@ -250,6 +258,23 @@ export const Coverage5GSchema = z.object({
   verifyUrl: z.string().optional(),
 })
 export type Coverage5G = z.infer<typeof Coverage5GSchema>
+
+// ---------------------------------------------------------------------------
+// Coworking / bureau partagé (par commune)
+// ---------------------------------------------------------------------------
+
+export const CoworkingSchema = z.object({
+  commune: z.string(),
+  name: z.string(),
+  /** Distance jusqu'au lieu de couchage, en minutes de skateboard. */
+  minutesBySkateboard: z.number(),
+  /** Équipements pertinents pour le télétravail. */
+  hasFiber: z.boolean(),
+  hasAc: z.boolean(),
+  sourceStatus: SourceStatusSchema,
+  verifyUrl: z.string().optional(),
+})
+export type Coworking = z.infer<typeof CoworkingSchema>
 
 // ---------------------------------------------------------------------------
 // Trip plan (the full generated plan)

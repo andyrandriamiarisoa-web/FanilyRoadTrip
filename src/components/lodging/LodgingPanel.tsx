@@ -9,6 +9,7 @@ import { loadActiveProfile } from "@/lib/db";
 import {
   assessWorkation,
   getCoverageForCommune,
+  getCoworkingForCommune,
   type ConformityStatus,
   type WorkationAssessment,
 } from "@/lib/lodging/workation";
@@ -58,6 +59,9 @@ export function LodgingPanel({ day, selectedId, onSelect }: LodgingPanelProps) {
         firmMattressRequired: profile.medical.requiresFirmMattress,
         coverageQuality: getCoverageForCommune(day.location)?.quality,
         coverageMbps: getCoverageForCommune(day.location)?.estimatedMbps,
+        allowSharedOffice: profile.work.allowSharedOffice,
+        maxOfficeMinutesSkateboard: profile.work.maxOfficeMinutesSkateboard,
+        sharedOffice: getCoworkingForCommune(day.location),
       })
     : null;
 
@@ -134,7 +138,7 @@ function WorkationConformity({
   return (
     <div
       className="space-y-2 p-3 rounded-lg"
-      style={{ background: "var(--bg-surface)" }}
+      style={{ background: "var(--bg-base)", border: "1px solid var(--border-default)" }}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -150,6 +154,25 @@ function WorkationConformity({
           </li>
         ))}
       </ul>
+
+      {assessment.sharedOfficeUsed && (
+        <p className="text-xs flex items-start gap-1.5" style={{ color: "var(--text-secondary)" }}>
+          <span aria-hidden="true">🛹</span>
+          <span>
+            Bureau partagé « {assessment.sharedOfficeUsed.name} » à{" "}
+            {assessment.sharedOfficeUsed.minutesBySkateboard} min en skateboard.
+          </span>
+        </p>
+      )}
+
+      {assessment.lateCheckoutSoftened && (
+        <p className="text-xs flex items-start gap-2">
+          <span className="badge-verified shrink-0">Late checkout</span>
+          <span style={{ color: "var(--text-secondary)" }}>
+            assoupli grâce au bureau partagé proche.
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -252,12 +275,22 @@ function LodgingCard({
             À confirmer :
           </p>
           <ul className="text-xs space-y-0.5">
-            {option.toConfirm.map((key) => (
-              <li key={key} className="flex items-center gap-1.5" style={{ color: "var(--text-secondary)" }}>
-                <span aria-hidden="true">□</span>
-                {TO_CONFIRM_LABELS[key] ?? key}
-              </li>
-            ))}
+            {option.toConfirm.map((key) => {
+              const softened = key === "lateCheckout" && workation?.lateCheckoutSoftened;
+              return (
+                <li
+                  key={key}
+                  className="flex items-center gap-1.5"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <span aria-hidden="true">{softened ? "✓" : "□"}</span>
+                  <span>
+                    {TO_CONFIRM_LABELS[key] ?? key}
+                    {softened && " — assoupli (bureau partagé proche)"}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

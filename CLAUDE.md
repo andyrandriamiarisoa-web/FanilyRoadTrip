@@ -65,6 +65,15 @@ jamais exclure** ; `recommendForWorkationNight` recommande le meilleur conforme
 s'il existe, sinon signale. Surface dans `LodgingPanel` (badges de conformité,
 nouveau badge `badge-danger` WCAG AA). *Prochaine étape : génération IA (M7).*
 
+**Bureau partagé à proximité (extension M6)** : le Profil Foyer peut autoriser un
+**espace de coworking proche** du lieu de couchage (`allowSharedOffice`,
+`maxOfficeMinutesSkateboard`, défaut 10 min). Seed `coworking.json` par commune
+(`getCoworkingForCommune`). Quand un bureau partagé est assez proche, il **satisfait
+le critère poste de travail** même si l'hébergement n'a pas de bureau conforme, et
+**assouplit le late checkout** (`lateCheckoutSoftened`) — on n'a plus besoin de
+travailler dans la chambre jusqu'au départ. Éditable dans `/parametres`, affiché
+dans `LodgingPanel`.
+
 **Génération IA (M7)** : `src/lib/agents/itinerary-ai.ts` propose un itinéraire
 structuré à partir d'une description en texte libre + le Profil Foyer. **Mock-first**
 (`itinerary-mock.ts`, déterministe) ; en mode LIVE, appel à l'API Anthropic
