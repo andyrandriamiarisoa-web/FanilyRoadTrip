@@ -14,3 +14,4 @@
 | 10 | Vitest pour tests unitaires | Compatible ESM/TypeScript natif, rapide, pas de config Jest | Jest (setup plus complexe avec ESM/Next.js) |
 | 11 | Tailwind v4 (via postcss) | Déjà bundlé par create-next-app v16, performant | Tailwind v3 (ancienne génération) |
 | 12 | Grignan exclu télétravail → visite seule | 5G SFR insuffisante (~29 Mbit/s) selon dataset ARCEP | Garder comme base (risque coupure lors de réunions) |
+| 13 | `VehicleProvider` derrière fabrique mock/Tesla, appelé côté serveur uniquement | Démontrable sans clé (mock déterministe), tokens jamais exposés au client, lecture SoC ponctuelle (jamais de polling) | Appel Tesla direct depuis le client (fuite de token, CORS, coût par requête) |

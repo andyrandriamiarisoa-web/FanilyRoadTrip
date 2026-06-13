@@ -137,3 +137,33 @@ test("profil foyer — édition, sauvegarde versionnée et persistance", async (
   await expect(reloaded).toHaveValue("8")
   await expect(page.getByText("v2")).toBeVisible()
 })
+
+// ---------------------------------------------------------------------------
+// Connexion Tesla — mock-first (M3)
+// ---------------------------------------------------------------------------
+
+test("connexion Tesla (mock) — lister, choisir et lire le SoC", async ({ page }) => {
+  await page.goto("/parametres")
+
+  // Démarre la connexion (mode mock, aucune clé requise).
+  await page.getByRole("button", { name: /connecter mon compte tesla/i }).click()
+
+  // Un véhicule mock apparaît et indique la source « Démo (mock) ».
+  await expect(page.getByText(/démo \(mock\)/i)).toBeVisible({ timeout: 10_000 })
+  const vehicleBtn = page.getByRole("button", { name: /model s raven/i })
+  await expect(vehicleBtn).toBeVisible()
+
+  // Sélectionne le véhicule → lecture ponctuelle de l'état de charge.
+  await vehicleBtn.click()
+  await expect(page.getByText(/état de charge/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/autonomie estimée/i)).toBeVisible()
+
+  // La sélection persiste après rechargement (IndexedDB).
+  await page.reload()
+  await expect(page.getByText(/état de charge/i)).toBeVisible({ timeout: 10_000 })
+})
+
+test("clé publique Tesla absente → 404 en mode mock", async ({ request }) => {
+  const res = await request.get("/.well-known/appspecific/com.tesla.3p.public-key.pem")
+  expect(res.status()).toBe(404)
+})

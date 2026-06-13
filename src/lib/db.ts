@@ -24,10 +24,21 @@ interface LodgingSelection {
   selectedAt: string;
 }
 
+/** Véhicule sélectionné par l'utilisateur (singleton, id fixe). */
+interface VehicleSelectionRow {
+  id: string;
+  vehicleId: string;
+  displayName: string;
+  selectedAt: string;
+}
+
+const VEHICLE_SELECTION_ID = "active";
+
 export class OdysseeDatabase extends Dexie {
   tripPlans!: EntityTable<StoredTripPlan, "id">;
   profiles!: EntityTable<FamilyProfile, "id">;
   lodgingSelections!: EntityTable<LodgingSelection, "id">;
+  vehicleSelections!: EntityTable<VehicleSelectionRow, "id">;
 
   constructor() {
     super("odyssee-db");
@@ -35,6 +46,10 @@ export class OdysseeDatabase extends Dexie {
       tripPlans: "id, storedAt",
       profiles: "id",
       lodgingSelections: "id, tripPlanId, date",
+    });
+    // v2 : sélection du véhicule Tesla (M3). Dexie conserve les stores v1.
+    this.version(2).stores({
+      vehicleSelections: "id",
     });
   }
 }
@@ -121,4 +136,37 @@ export async function getLodgingSelections(
     .equals(tripPlanId)
     .toArray();
   return Object.fromEntries(selections.map((s) => [s.date, s.lodgingId]));
+}
+
+// ---------------------------------------------------------------------------
+// Sélection du véhicule Tesla (M3)
+// ---------------------------------------------------------------------------
+
+export interface SelectedVehicle {
+  vehicleId: string;
+  displayName: string;
+  selectedAt: string;
+}
+
+/** Persiste le véhicule choisi par l'utilisateur (un seul actif). */
+export async function saveSelectedVehicle(
+  vehicleId: string,
+  displayName: string,
+): Promise<void> {
+  const db = getDb();
+  await db.vehicleSelections.put({
+    id: VEHICLE_SELECTION_ID,
+    vehicleId,
+    displayName,
+    selectedAt: new Date().toISOString(),
+  });
+}
+
+/** Renvoie le véhicule sélectionné, ou null si aucun. */
+export async function getSelectedVehicle(): Promise<SelectedVehicle | null> {
+  const db = getDb();
+  const row = await db.vehicleSelections.get(VEHICLE_SELECTION_ID);
+  return row
+    ? { vehicleId: row.vehicleId, displayName: row.displayName, selectedAt: row.selectedAt }
+    : null;
 }
