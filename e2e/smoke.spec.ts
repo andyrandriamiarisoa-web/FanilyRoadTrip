@@ -267,3 +267,27 @@ test("bureau partagé proche — satisfait le poste de travail et assouplit le l
   await expect(page.getByText(/bureau partagé/i).first()).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/assoupli/i).first()).toBeVisible()
 })
+
+// ---------------------------------------------------------------------------
+// Budget & dépenses (M8)
+// ---------------------------------------------------------------------------
+
+test("budget — ajouter une dépense, ventilation et découpage", async ({ page }) => {
+  await page.goto("/budget")
+  await expect(page.getByRole("heading", { name: /budget & dépenses/i })).toBeVisible()
+
+  // Ajoute une dépense d'hébergement payée par Parent 1, partagée.
+  await page.getByLabel("Libellé").fill("Hôtel Dijon")
+  await page.getByLabel("Montant en euros").fill("200")
+  await page.getByLabel("Catégorie").selectOption("lodging")
+  await page.getByRole("button", { name: "Ajouter" }).click()
+
+  // La dépense apparaît dans la liste et la ventilation.
+  await expect(page.getByText("Hôtel Dijon")).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole("heading", { name: /ventilation par poste/i })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /découpage des dépenses/i })).toBeVisible()
+
+  // La dépense persiste après rechargement (IndexedDB).
+  await page.reload()
+  await expect(page.getByText("Hôtel Dijon")).toBeVisible({ timeout: 10_000 })
+})
