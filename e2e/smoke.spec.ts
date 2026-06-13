@@ -171,3 +171,23 @@ test("clé publique Tesla absente → 404 en mode mock", async ({ request }) => 
   const res = await request.get("/.well-known/appspecific/com.tesla.3p.public-key.pem")
   expect(res.status()).toBe(404)
 })
+
+// ---------------------------------------------------------------------------
+// Routage charge-aware (M4)
+// ---------------------------------------------------------------------------
+
+test("trajet charge-aware — calcule des arrêts de charge cohérents", async ({ page }) => {
+  await page.goto("/plan")
+
+  // La section RoutePlanner est présente.
+  await expect(page.getByRole("heading", { name: /trajet charge-aware/i })).toBeVisible()
+
+  // Calcule avec le SoC cible par défaut (90 % → arrivée 20 %).
+  await page.getByRole("button", { name: /calculer les arrêts de charge/i }).click()
+
+  // Au moins un arrêt Supercharger et le SoC d'arrivée apparaissent.
+  await expect(page.getByText(/Recharge —/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText("Arrivée", { exact: true })).toBeVisible()
+  // Rappel de préconditionnement présent.
+  await expect(page.getByText(/préconditionner la batterie/i).first()).toBeVisible()
+})

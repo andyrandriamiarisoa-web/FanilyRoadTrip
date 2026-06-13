@@ -15,3 +15,5 @@
 | 11 | Tailwind v4 (via postcss) | Déjà bundlé par create-next-app v16, performant | Tailwind v3 (ancienne génération) |
 | 12 | Grignan exclu télétravail → visite seule | 5G SFR insuffisante (~29 Mbit/s) selon dataset ARCEP | Garder comme base (risque coupure lors de réunions) |
 | 13 | `VehicleProvider` derrière fabrique mock/Tesla, appelé côté serveur uniquement | Démontrable sans clé (mock déterministe), tokens jamais exposés au client, lecture SoC ponctuelle (jamais de polling) | Appel Tesla direct depuis le client (fuite de token, CORS, coût par requête) |
+| 14 | `RoutePlanner` maison déterministe (option B) plutôt qu'API VE externe (option A) | Zéro dépendance/clé externe, testable sur fixtures, contrôle total du modèle de charge | API ABRP (qualité immédiate mais clé payante, non déterministe en CI, point de blocage) |
+| 15 | Sélection Supercharger par détour réel `d(O→C)+d(C→D)−d(O→D)` | Robuste aux coudes autoroutiers (A6/A7) ; l'écart perpendiculaire à la corde droite excluait Dijon/Beaune (faux « hors corridor ») | Écart perpendiculaire à la ligne droite (sous-estime les itinéraires courbes) |
