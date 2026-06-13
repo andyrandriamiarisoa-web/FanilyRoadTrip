@@ -81,11 +81,15 @@ function extractProvider(text: string): string | undefined {
   return undefined
 }
 
+/** Lignes de politesse ou de boilerplate à ignorer pour le titre. */
+const TITLE_SKIP =
+  /^(bonjour|hello|cher|chère|madame|monsieur)|r[ée]servation (est )?confirm|votre r[ée]servation|confirmation de votre|nous vous confirmons|booking (is )?confirmed|is confirmed|^merci\b/i
+
 function firstMeaningfulLine(text: string): string {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => l.length > 2 && !/^(bonjour|hello|cher|chère|madame|monsieur)/i.test(l))
+    .filter((l) => l.length > 2 && !TITLE_SKIP.test(l))
   return (lines[0] ?? "Réservation").slice(0, 120)
 }
 

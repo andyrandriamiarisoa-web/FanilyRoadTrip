@@ -65,6 +65,8 @@ Référence : CHAP-2026-778
 Booking.com`
     const r = parseReservation(email)
     expect(r.type).toBe("lodging")
+    // Le titre saute la politesse ET le boilerplate de confirmation.
+    expect(r.title).toBe("Hôtel le Chapeau Rouge")
     expect(r.provider).toBe("Booking")
     expect(r.startDate).toBe("2026-08-03")
     expect(r.endDate).toBe("2026-08-07")
