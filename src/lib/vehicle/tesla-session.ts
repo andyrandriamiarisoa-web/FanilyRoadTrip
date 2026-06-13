@@ -13,7 +13,14 @@
  * Serveur uniquement (utilise `node:crypto`).
  */
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto"
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto"
 import {
   refreshAccessToken,
   getTeslaOAuthConfig,
@@ -21,10 +28,12 @@ import {
 } from "./tesla-oauth"
 
 export const TESLA_SESSION_COOKIE = "tesla_session"
-export const TESLA_OAUTH_STATE_COOKIE = "tesla_oauth_state"
 
 /** Durée du cookie de session ≈ durée de vie du refresh token Tesla (~3 mois). */
 export const TESLA_SESSION_MAX_AGE_SECONDS = 90 * 24 * 3600
+
+/** Fenêtre de validité d'un `state` OAuth signé (15 min). */
+const STATE_MAX_AGE_MS = 15 * 60 * 1000
 
 /** Rafraîchit l'access token s'il expire dans moins de cette marge. */
 const REFRESH_SKEW_MS = 60_000
@@ -47,6 +56,46 @@ function deriveKey(secret: string): Buffer {
 
 function getSecret(): string | null {
   return process.env.TESLA_TOKEN_SECRET || null
+}
+
+/**
+ * `state` OAuth **signé** (HMAC-SHA256), sans cookie. Le state voyage dans
+ * l'URL d'autorisation, Tesla nous le renvoie, et on vérifie sa signature au
+ * retour. Cela évite la dépendance à un cookie qui ne survit pas toujours au
+ * détour cross-site/PWA (iOS), tout en gardant la protection anti-CSRF : un
+ * attaquant ne peut pas forger de state valide sans le secret serveur.
+ *
+ * Format : `<nonce>.<timestamp>.<hmac base64url>`.
+ */
+export function createSignedState(secret = getSecret()): string | null {
+  if (!secret) return null
+  const payload = `${randomBytes(12).toString("hex")}.${Date.now()}`
+  const sig = createHmac("sha256", secret).update(payload).digest("base64url")
+  return `${payload}.${sig}`
+}
+
+/** Vérifie un `state` signé : signature constante-temps + fraîcheur. */
+export function verifySignedState(
+  state: string | null | undefined,
+  opts: { secret?: string | null; now?: () => number } = {},
+): boolean {
+  const secret = opts.secret === undefined ? getSecret() : opts.secret
+  if (!secret || !state) return false
+  const parts = state.split(".")
+  if (parts.length !== 3) return false
+  const [nonce, ts, sig] = parts
+
+  const expected = createHmac("sha256", secret).update(`${nonce}.${ts}`).digest("base64url")
+  const a = Buffer.from(sig)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false
+
+  const now = opts.now ?? Date.now
+  const issued = Number(ts)
+  if (!Number.isFinite(issued)) return false
+  // Ni trop ancien, ni dans le futur (tolérance d'horloge 1 min).
+  if (now() - issued > STATE_MAX_AGE_MS || issued - now() > 60_000) return false
+  return true
 }
 
 /** Chiffre une session. Renvoie `null` si le secret n'est pas configuré. */
