@@ -10,6 +10,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M1 | **Profil Foyer éditable & versionné** (IndexedDB, consommé par le planificateur) | ✅ |
 | M3 | **Connexion Tesla mock-first** (`VehicleProvider`, sélection véhicule, lecture SoC ponctuelle) | ✅ |
 | M4 | **Routage charge-aware** (`RoutePlanner`, Superchargeurs only, SoC départ réel/cible → arrivée cible, préconditionnement) | ✅ |
+| M5 | **Fusion des contraintes** (pauses bébé, blocage canicule 12h–16h, évitement télétravail, chronologie heure par heure) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -42,6 +43,16 @@ signalée honnêtement (jamais masquée). Exposé via `/api/route/plan` ; UI `/p
 (`ChargePlanner`) avec SoC de départ **réel** (lu du véhicule M3) ou **cible**.
 Testé sur le trajet fixture Fresnes→Marseille (arrêts cohérents, arrivée respectée).
 *Prochaine étape : fusionner ces arrêts avec les pauses bébé / canicule / télétravail (M5).*
+
+**Fusion des contraintes (M5)** : moteur pur `fuseDayTimeline` (`src/lib/constraints/`)
+qui simule une horloge le long de la conduite et insère, par priorité :
+pauses **bébé** (≤ `maxLegMinutes`, réinitialisées par une recharge → alignement),
+**blocages** canicule 12h–16h et heures de **télétravail** (conduite différée jusqu'à
+la fin de la fenêtre), et **recharges**. Produit une **chronologie heure par heure**
+et signale honnêtement les débordements (nuitée nécessaire). Branché dans
+`ChargePlanner` (heure de départ + bascules canicule / jour travaillé) à partir du
+Profil Foyer (M1). Testé : un trajet en canicule recale les pauses et bloque 12h–16h.
+*Prochaine étape : hébergements conformes + mode workation (M6).*
 
 ## Commandes essentielles
 
