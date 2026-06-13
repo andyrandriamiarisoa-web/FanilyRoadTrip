@@ -291,3 +291,28 @@ test("budget — ajouter une dépense, ventilation et découpage", async ({ page
   await page.reload()
   await expect(page.getByText("Hôtel Dijon")).toBeVisible({ timeout: 10_000 })
 })
+
+// ---------------------------------------------------------------------------
+// Listes de bagages bébé-aware (M8)
+// ---------------------------------------------------------------------------
+
+test("bagages — liste bébé/saison générée, cochage persistant", async ({ page }) => {
+  await page.goto("/bagages")
+  await expect(page.getByRole("heading", { name: /liste de bagages/i })).toBeVisible()
+
+  // Section bébé présente avec un essentiel daté de la durée.
+  await expect(page.getByRole("heading", { name: "Bébé", exact: true })).toBeVisible()
+  const couches = page.getByText(/^Couches/i)
+  await expect(couches.first()).toBeVisible()
+
+  // Coche un article ; l'état persiste après rechargement.
+  const litParapluie = page.getByText(/Lit parapluie/i)
+  const checkbox = litParapluie.locator("xpath=ancestor::label//input[@type='checkbox']")
+  await checkbox.check()
+  await expect(checkbox).toBeChecked()
+  await page.reload()
+  const checkboxAfter = page
+    .getByText(/Lit parapluie/i)
+    .locator("xpath=ancestor::label//input[@type='checkbox']")
+  await expect(checkboxAfter).toBeChecked()
+})

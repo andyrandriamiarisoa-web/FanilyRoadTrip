@@ -62,6 +62,13 @@ export default function HomePage() {
           Budget
         </Link>
         <Link
+          href="/bagages"
+          className="text-sm font-medium underline underline-offset-4"
+          style={{ color: "var(--accent-vine-light)" }}
+        >
+          Bagages
+        </Link>
+        <Link
           href="/parametres"
           className="text-sm font-medium underline underline-offset-4"
           style={{ color: "var(--text-secondary)" }}

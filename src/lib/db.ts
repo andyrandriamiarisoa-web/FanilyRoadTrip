@@ -48,6 +48,16 @@ interface BudgetSettingsRow {
 
 const BUDGET_SETTINGS_ID = "active";
 
+/** État de la liste de bagages (singleton) : config + articles cochés. */
+interface PackingStateRow {
+  id: string;
+  durationDays: number;
+  month: number;
+  checkedKeys: string[];
+}
+
+const PACKING_STATE_ID = "active";
+
 const DEFAULT_BUDGET_SETTINGS: Omit<BudgetSettingsRow, "id"> = {
   travelers: ["Parent 1", "Parent 2"],
   budgets: { lodging: 1500, charging: 150, food: 600, activities: 400, tolls: 120, misc: 200 },
@@ -60,6 +70,7 @@ export class OdysseeDatabase extends Dexie {
   vehicleSelections!: EntityTable<VehicleSelectionRow, "id">;
   expenses!: EntityTable<ExpenseRow, "id">;
   budgetSettings!: EntityTable<BudgetSettingsRow, "id">;
+  packingState!: EntityTable<PackingStateRow, "id">;
 
   constructor() {
     super("odyssee-db");
@@ -76,6 +87,10 @@ export class OdysseeDatabase extends Dexie {
     this.version(3).stores({
       expenses: "id, category, date",
       budgetSettings: "id",
+    });
+    // v4 : état de la liste de bagages (M8).
+    this.version(4).stores({
+      packingState: "id",
     });
   }
 }
@@ -242,4 +257,35 @@ export async function addExpense(expense: Expense): Promise<void> {
 export async function deleteExpense(id: string): Promise<void> {
   const db = getDb();
   await db.expenses.delete(id);
+}
+
+// ---------------------------------------------------------------------------
+// Liste de bagages (M8)
+// ---------------------------------------------------------------------------
+
+export interface PackingState {
+  durationDays: number;
+  month: number;
+  checkedKeys: string[];
+}
+
+const DEFAULT_PACKING_STATE: PackingState = {
+  durationDays: 15,
+  month: 8,
+  checkedKeys: [],
+};
+
+export async function loadPackingState(): Promise<PackingState> {
+  const db = getDb();
+  const row = await db.packingState.get(PACKING_STATE_ID);
+  if (row) {
+    return { durationDays: row.durationDays, month: row.month, checkedKeys: row.checkedKeys };
+  }
+  await db.packingState.put({ id: PACKING_STATE_ID, ...DEFAULT_PACKING_STATE });
+  return { ...DEFAULT_PACKING_STATE, checkedKeys: [] };
+}
+
+export async function savePackingState(state: PackingState): Promise<void> {
+  const db = getDb();
+  await db.packingState.put({ id: PACKING_STATE_ID, ...state });
 }
