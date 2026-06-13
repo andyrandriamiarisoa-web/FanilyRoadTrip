@@ -10,6 +10,7 @@ const PAIRS = [
   ["#1e293b", "#faf8f3", "text-on-card-warm on bg-card-warm"],
   ["#546070", "#faf8f3", "text-muted on bg-card-warm"],
   ["#1a1200", "#f59e0b", "text-on-amber on accent-amber"],
+  ["#ffffff", "#7c3aed", "work-block label on accent-vine (timeline)"],
   ["#93c5fd", "#1e3a5f", "badge-seed-text on badge-seed-bg"],
   ["#fde68a", "#3b2f00", "badge-estimated-text on badge-estimated-bg"],
   ["#6ee7b7", "#064e3b", "badge-verified-text on badge-verified-bg"],

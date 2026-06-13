@@ -191,3 +191,21 @@ test("trajet charge-aware — calcule des arrêts de charge cohérents", async (
   // Rappel de préconditionnement présent.
   await expect(page.getByText(/préconditionner la batterie/i).first()).toBeVisible()
 })
+
+// ---------------------------------------------------------------------------
+// Fusion des contraintes (M5)
+// ---------------------------------------------------------------------------
+
+test("fusion des contraintes — canicule bloque la conduite 12h–16h", async ({ page }) => {
+  await page.goto("/plan")
+
+  // Active la canicule, puis calcule.
+  await page.getByRole("checkbox", { name: /canicule/i }).check()
+  await page.getByRole("button", { name: /calculer les arrêts de charge/i }).click()
+
+  // La chronologie heure par heure apparaît avec un blocage canicule.
+  await expect(page.getByRole("heading", { name: /chronologie heure par heure/i })).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(page.getByText(/Canicule — pas de conduite/i).first()).toBeVisible()
+})

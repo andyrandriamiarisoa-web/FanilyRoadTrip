@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { getSelectedVehicle } from "@/lib/db";
+import { getSelectedVehicle, loadActiveProfile } from "@/lib/db";
 import { REFERENCE_TRIP_REQUEST } from "@/data/voyage-reference";
 import type { RoutePlanResult } from "@/lib/routing/types";
+import { timelineFromLegs, formatHour } from "@/lib/constraints/fusion";
+import type { TimelineEvent, TimelineResult } from "@/lib/constraints/types";
 
 type SocSource = "target" | "live";
 
@@ -24,8 +26,11 @@ export function ChargePlanner() {
   const [startSoc, setStartSoc] = useState(90);
   const [targetArrival, setTargetArrival] = useState(20);
   const [heatwave, setHeatwave] = useState(false);
+  const [departureHour, setDepartureHour] = useState(8);
+  const [workDay, setWorkDay] = useState(false);
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<RoutePlanResult | null>(null);
+  const [timeline, setTimeline] = useState<TimelineResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [socNote, setSocNote] = useState<string | null>(null);
 
@@ -67,7 +72,27 @@ export function ChargePlanner() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Calcul impossible");
-      setPlan(data.plan as RoutePlanResult);
+      const routePlan = data.plan as RoutePlanResult;
+      setPlan(routePlan);
+
+      // Fusion des contraintes (M5) : pauses bébé, canicule, télétravail.
+      const profile = await loadActiveProfile();
+      const legs = routePlan.segments.map((seg, i) => ({
+        driveMinutes: seg.durationMinutes,
+        toName: seg.toName,
+        chargeMinutes: routePlan.chargeStops[i]?.chargeMinutes,
+        chargerName: routePlan.chargeStops[i]?.superchargerName,
+      }));
+      setTimeline(
+        timelineFromLegs(legs, {
+          departureHour,
+          maxLegMinutes: profile.baby.maxLegMinutes,
+          isHeatwave: heatwave,
+          heatWindow: profile.baby.noDrivingHours,
+          isWorkDay: workDay,
+          workWindow: [profile.work.workStartHour, profile.work.workEndHour],
+        }),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de calcul");
     } finally {
@@ -113,14 +138,35 @@ export function ChargePlanner() {
         onChange={setTargetArrival}
       />
 
+      <PercentLikeField
+        label="Heure de départ"
+        suffix="h"
+        value={departureHour}
+        min={0}
+        max={23}
+        onChange={setDepartureHour}
+      />
+
       <label className="flex items-center justify-between gap-3 cursor-pointer">
         <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-          Conduite en canicule (surconsommation clim)
+          Conduite en canicule (blocage 12h–16h + surconsommation)
         </span>
         <input
           type="checkbox"
           checked={heatwave}
           onChange={(e) => setHeatwave(e.target.checked)}
+          className="h-5 w-5 accent-[var(--accent-amber)]"
+        />
+      </label>
+
+      <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+          Jour travaillé (pas de conduite en heures ouvrées)
+        </span>
+        <input
+          type="checkbox"
+          checked={workDay}
+          onChange={(e) => setWorkDay(e.target.checked)}
           className="h-5 w-5 accent-[var(--accent-amber)]"
         />
       </label>
@@ -141,7 +187,55 @@ export function ChargePlanner() {
       )}
 
       {plan && <PlanView plan={plan} />}
+      {timeline && <TimelineView timeline={timeline} />}
     </section>
+  );
+}
+
+const EVENT_STYLE: Record<TimelineEvent["type"], { bg: string; fg: string; icon: string }> = {
+  drive: { bg: "var(--bg-base)", fg: "var(--text-primary)", icon: "🚗" },
+  charge: { bg: "var(--bg-surface)", fg: "var(--text-primary)", icon: "⚡" },
+  "baby-pause": { bg: "var(--badge-seed-bg)", fg: "var(--badge-seed-text)", icon: "🍼" },
+  "heat-block": { bg: "var(--accent-warning)", fg: "var(--text-on-amber)", icon: "🌡️" },
+  "work-block": { bg: "var(--accent-vine)", fg: "#fff", icon: "💼" },
+};
+
+function TimelineView({ timeline }: { timeline: TimelineResult }) {
+  return (
+    <div className="space-y-2 pt-2 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+      <h3 className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+        Chronologie heure par heure
+      </h3>
+
+      {!timeline.feasibleWithinDay && (
+        <p
+          className="text-xs p-2 rounded"
+          role="alert"
+          style={{ color: "var(--text-on-amber)", background: "var(--accent-warning)" }}
+        >
+          {timeline.conflicts[0] ?? "Conduite à répartir sur plusieurs jours."}
+        </p>
+      )}
+
+      <ol className="space-y-1">
+        {timeline.events.map((ev, i) => {
+          const s = EVENT_STYLE[ev.type];
+          return (
+            <li
+              key={i}
+              className="flex items-center gap-2 text-xs p-2 rounded-lg"
+              style={{ background: s.bg, color: s.fg }}
+            >
+              <span aria-hidden="true">{s.icon}</span>
+              <span className="font-mono tabular-nums">
+                {formatHour(ev.startHour)}–{formatHour(ev.endHour)}
+              </span>
+              <span>{ev.label}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -281,6 +375,49 @@ function PercentField({
         />
         <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
           %
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function PercentLikeField({
+  label,
+  suffix,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  suffix: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3">
+      <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+        {label}
+      </span>
+      <span className="flex items-center gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={min}
+          max={max}
+          value={Number.isNaN(value) ? "" : value}
+          onChange={(e) => onChange(Math.max(min, Math.min(max, e.target.valueAsNumber)))}
+          className="h-11 w-20 px-3 rounded-lg text-sm"
+          style={{
+            background: "var(--bg-base)",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border-default)",
+          }}
+        />
+        <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          {suffix}
         </span>
       </span>
     </label>
