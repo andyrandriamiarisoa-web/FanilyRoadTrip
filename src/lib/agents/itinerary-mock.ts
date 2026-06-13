@@ -9,6 +9,9 @@
 
 import type { AiItineraryDraft, AiItineraryDay, AiItineraryRequest } from "./itinerary-types"
 
+/** Ville de départ par défaut (Fresnes, banlieue sud de Paris). */
+const DEFAULT_ORIGIN = "Fresnes"
+
 const WEEKDAY_INDEX_TO_KEY = [
   "sunday",
   "monday",
@@ -65,6 +68,8 @@ export function generateMockItinerary(req: AiItineraryRequest): AiItineraryDraft
     let activities: string[]
     let lodgingHint: string
     let title: string
+    // Premier jour non travaillé = trajet aller ; dernier jour = trajet retour.
+    let drivingFromTo: string | undefined
 
     if (isWorkDay) {
       title = `Journée workation à ${req.destination}`
@@ -76,15 +81,39 @@ export function generateMockItinerary(req: AiItineraryRequest): AiItineraryDraft
       lodgingHint = "Hébergement workation : bureau ≥ 120 cm, fibre + 5G SFR, matelas ferme, climatisation"
       constraintNotes.push("Jour travaillé : pas de longue conduite en heures ouvrées")
     } else {
-      title = `Découverte à ${req.destination}`
-      activities = [
-        LEISURE_ACTIVITIES[i % LEISURE_ACTIVITIES.length],
-        LEISURE_ACTIVITIES[(i + 2) % LEISURE_ACTIVITIES.length],
-      ]
+      // Premier jour : trajet depuis l'origine vers la destination.
+      if (i === 0) {
+        title = `Départ ${DEFAULT_ORIGIN} → ${req.destination}`
+        drivingFromTo = `${DEFAULT_ORIGIN} → ${req.destination}`
+        activities = [
+          "Départ matinal (avant 10h) pour éviter la canicule de mi-journée",
+          "Pause pique-nique et sieste bébé à mi-chemin",
+          LEISURE_ACTIVITIES[i % LEISURE_ACTIVITIES.length],
+        ]
+        constraintNotes.push(
+          "Départ tôt recommandé : éviter la conduite en canicule 12h–16h et optimiser la recharge Supercharger",
+        )
+      } else if (i === dates.length - 1 && dates.length > 1) {
+        // Dernier jour : trajet retour.
+        title = `Retour ${req.destination} → ${DEFAULT_ORIGIN}`
+        drivingFromTo = `${req.destination} → ${DEFAULT_ORIGIN}`
+        activities = [
+          "Départ après petit-déjeuner (avant la chaleur)",
+          "Pause Supercharger et déjeuner sur la route",
+          "Retour en fin d'après-midi",
+        ]
+        constraintNotes.push("Retour anticipé conseillé pour éviter les bouchons du dimanche soir")
+      } else {
+        title = `Découverte à ${req.destination}`
+        activities = [
+          LEISURE_ACTIVITIES[i % LEISURE_ACTIVITIES.length],
+          LEISURE_ACTIVITIES[(i + 2) % LEISURE_ACTIVITIES.length],
+        ]
+      }
       lodgingHint = "Hébergement confort : matelas ferme, climatisation, lit bébé"
     }
 
-    return { date, title, activities, lodgingHint, constraintNotes }
+    return { date, title, drivingFromTo, activities, lodgingHint, constraintNotes }
   })
 
   const constraintsApplied = req.constraints.length

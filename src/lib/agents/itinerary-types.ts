@@ -9,6 +9,25 @@
 
 import { z } from "zod"
 
+/**
+ * Données de trajet calculées côté serveur — jamais produites par le LLM.
+ * Renseignées par `attachRealisticLegs` après génération du brouillon.
+ */
+export const RealisticLegSchema = z.object({
+  /** Libellé du trajet tel que fourni par le LLM (ex. « Paris → Marseille »). */
+  fromTo: z.string(),
+  distanceKm: z.number(),
+  drivingMinutes: z.number(),
+  trafficMarginMinutes: z.number(),
+  pauseMinutes: z.number(),
+  chargingMinutes: z.number(),
+  totalMinutes: z.number(),
+  /** Origine de la donnée de routage (OSRM live → verified, seed → seed, haversine → estimated). */
+  source: z.enum(["verified", "seed", "estimated"]),
+  trafficNote: z.string(),
+})
+export type RealisticLeg = z.infer<typeof RealisticLegSchema>
+
 export const AiItineraryDaySchema = z.object({
   date: z.string(),
   title: z.string(),
@@ -19,6 +38,11 @@ export const AiItineraryDaySchema = z.object({
   lodgingHint: z.string(),
   /** Comment les contraintes du foyer ont façonné cette journée. */
   constraintNotes: z.array(z.string()),
+  /**
+   * Durée de trajet réaliste calculée côté serveur (jamais produite par le LLM).
+   * Présente uniquement si `drivingFromTo` est renseigné et le géocodage a réussi.
+   */
+  leg: RealisticLegSchema.optional(),
 })
 export type AiItineraryDay = z.infer<typeof AiItineraryDaySchema>
 

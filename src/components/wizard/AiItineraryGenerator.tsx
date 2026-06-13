@@ -6,6 +6,7 @@ import { loadActiveProfile } from "@/lib/db";
 import { summarizeProfile } from "@/lib/profile/profile";
 import { REFERENCE_TRIP_REQUEST } from "@/data/voyage-reference";
 import type { AiItineraryDraft } from "@/lib/agents/itinerary-types";
+import { formatHm } from "@/lib/routing/realistic-time";
 
 export function AiItineraryGenerator() {
   const [destination, setDestination] = useState(REFERENCE_TRIP_REQUEST.destination);
@@ -171,8 +172,56 @@ export function AiItineraryGenerator() {
                   className="p-2 rounded w-full text-xs resize-y"
                   style={inputStyle}
                 />
+                {day.leg && (
+                  <div
+                    className="rounded-lg p-3 space-y-1.5"
+                    style={{
+                      background: "var(--bg-base)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        Trajet — {day.leg.fromTo}
+                      </p>
+                      <span
+                        className={
+                          day.leg.source === "verified"
+                            ? "badge-verified"
+                            : day.leg.source === "seed"
+                              ? "badge-seed"
+                              : "badge-estimated"
+                        }
+                      >
+                        {day.leg.source === "verified"
+                          ? "Vérifié (OSRM)"
+                          : day.leg.source === "seed"
+                            ? "Table seed"
+                            : "Estimé"}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {day.leg.distanceKm} km · {formatHm(day.leg.totalMinutes)} au total
+                    </p>
+                    <ul className="text-xs space-y-0.5" style={{ color: "var(--text-secondary)" }}>
+                      <li>Conduite : {formatHm(day.leg.drivingMinutes)}</li>
+                      {day.leg.trafficMarginMinutes > 0 && (
+                        <li>Trafic estimé : +{formatHm(day.leg.trafficMarginMinutes)}</li>
+                      )}
+                      {day.leg.pauseMinutes > 0 && (
+                        <li>Pauses bébé : +{formatHm(day.leg.pauseMinutes)}</li>
+                      )}
+                      {day.leg.chargingMinutes > 0 && (
+                        <li>Recharge(s) : +{formatHm(day.leg.chargingMinutes)}</li>
+                      )}
+                    </ul>
+                    <p className="text-xs italic" style={{ color: "var(--text-secondary)" }}>
+                      {day.leg.trafficNote}
+                    </p>
+                  </div>
+                )}
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  🛏️ {day.lodgingHint}
+                  Nuit : {day.lodgingHint}
                 </p>
                 {day.constraintNotes.length > 0 && (
                   <ul className="text-xs space-y-0.5" style={{ color: "var(--text-muted)" }}>
