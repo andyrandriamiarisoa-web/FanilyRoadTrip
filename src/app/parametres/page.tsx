@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
+import { VehicleConnect } from "@/components/settings/VehicleConnect";
 
 export const metadata: Metadata = {
   title: "Paramètres",
@@ -18,6 +19,8 @@ export default function ParametresPage() {
       </header>
 
       <ProfileSettings />
+
+      <VehicleConnect />
 
       <section className="card p-5 space-y-4">
         <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
