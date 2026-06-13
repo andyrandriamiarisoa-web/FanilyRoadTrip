@@ -20,6 +20,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M9b | **Collaboration** (vote d'activités par approbation, sondage fusionnable & partageable par URL) | ✅ |
 | M9c | **Robustesse hors-ligne** (indicateur de connexion live, fonctions disponibles offline) | ✅ |
 | M10a | **Audit a11y automatisé** (axe-core sur toutes les pages clés, zéro violation critique) | ✅ |
+| M10b | **Durcissement sécurité** (en-têtes HTTP CSP/HSTS/…, posture tokens documentée `SECURITY.md`) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`

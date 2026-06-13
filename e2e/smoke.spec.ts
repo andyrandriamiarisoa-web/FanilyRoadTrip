@@ -403,3 +403,18 @@ test("page hors-ligne — liste des fonctions disponibles", async ({ page }) => 
   await expect(page.getByText(/disponible hors-ligne/i)).toBeVisible()
   await expect(page.getByText(/Carnet de route/i).first()).toBeVisible()
 })
+
+// ---------------------------------------------------------------------------
+// Durcissement sécurité — en-têtes HTTP (M10)
+// ---------------------------------------------------------------------------
+
+test("en-têtes de sécurité présents sur les réponses", async ({ page }) => {
+  const response = await page.goto("/")
+  const headers = response?.headers() ?? {}
+  expect(headers["content-security-policy"]).toContain("default-src 'self'")
+  expect(headers["content-security-policy"]).toContain("object-src 'none'")
+  expect(headers["x-content-type-options"]).toBe("nosniff")
+  expect(headers["x-frame-options"]).toBe("DENY")
+  expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin")
+  expect(headers["permissions-policy"]).toContain("geolocation=()")
+})
