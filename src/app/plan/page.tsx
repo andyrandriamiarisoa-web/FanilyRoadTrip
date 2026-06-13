@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PlanGenerator } from "@/components/wizard/PlanGenerator";
 import { ChargePlanner } from "@/components/routing/ChargePlanner";
+import { AiItineraryGenerator } from "@/components/wizard/AiItineraryGenerator";
 
 export const metadata: Metadata = {
   title: "Générer le voyage",
@@ -23,6 +24,8 @@ export default function PlanPage() {
       </header>
 
       <PlanGenerator />
+
+      <AiItineraryGenerator />
 
       <ChargePlanner />
     </div>

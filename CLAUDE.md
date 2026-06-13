@@ -12,6 +12,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M4 | **Routage charge-aware** (`RoutePlanner`, Superchargeurs only, SoC départ réel/cible → arrivée cible, préconditionnement) | ✅ |
 | M5 | **Fusion des contraintes** (pauses bébé, blocage canicule 12h–16h, évitement télétravail, chronologie heure par heure) | ✅ |
 | M6 | **Hébergements & workation** (conformité bureau/clim/5G/matelas, classement sans exclusion) | ✅ |
+| M7 | **Génération IA** (API Anthropic `claude-sonnet-4-6`, forced tool use → JSON validé Zod, mock-first) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -63,6 +64,16 @@ non conforme. **Anti-pattern respecté** : `rankForWorkationNight` **classe sans
 jamais exclure** ; `recommendForWorkationNight` recommande le meilleur conforme
 s'il existe, sinon signale. Surface dans `LodgingPanel` (badges de conformité,
 nouveau badge `badge-danger` WCAG AA). *Prochaine étape : génération IA (M7).*
+
+**Génération IA (M7)** : `src/lib/agents/itinerary-ai.ts` propose un itinéraire
+structuré à partir d'une description en texte libre + le Profil Foyer. **Mock-first**
+(`itinerary-mock.ts`, déterministe) ; en mode LIVE, appel à l'API Anthropic
+(`claude-sonnet-4-6`) en **forced tool use** (`tool_choice`) pour garantir une
+sortie JSON, validée par `AiItineraryDraftSchema` (Zod) — repli propre sur le mock
+en cas d'erreur. Clé API serveur uniquement (`/api/agents/itinerary`). UI `/plan`
+(`AiItineraryGenerator`) : description → brouillon **éditable** (titres + activités
+par jour), contraintes appliquées affichées, source (Claude/mock) indiquée.
+*Prochaine étape : budget, bagages, réservations (M8).*
 
 ## Commandes essentielles
 
