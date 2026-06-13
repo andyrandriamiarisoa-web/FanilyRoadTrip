@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest"
 import { generateMockItinerary } from "./itinerary-mock"
+import { attachRealisticLegs } from "./itinerary-legs"
 import {
   AiItineraryDraftSchema,
   AiItineraryRequestSchema,
   itineraryTool,
   ITINERARY_TOOL_NAME,
   type AiItineraryRequest,
+  type AiItineraryDraft,
 } from "./itinerary-types"
+import { estimateRealisticLeg } from "@/lib/routing/realistic-time"
+import { computeHaversineFallback } from "@/lib/providers/routing"
 
 function req(over: Partial<AiItineraryRequest> = {}): AiItineraryRequest {
   return {
@@ -90,6 +94,121 @@ describe("AiItineraryRequestSchema", () => {
         dateTo: "b",
       }),
     ).toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Integration : attachRealisticLegs
+// ---------------------------------------------------------------------------
+
+describe("attachRealisticLegs", () => {
+  it("Montélimar → Paris (~580 km) donne totalMinutes > 360 (plus jamais 3h40)", async () => {
+    // On simule un draft avec un trajet Montélimar → Paris
+    const mockDraft: AiItineraryDraft = {
+      destination: "Paris",
+      summary: "Test",
+      days: [
+        {
+          date: "2026-08-08", // samedi août
+          title: "Trajet Montélimar → Paris",
+          drivingFromTo: "Montélimar → Paris",
+          activities: [],
+          lodgingHint: "Hébergement confort",
+          constraintNotes: [],
+        },
+      ],
+      constraintsApplied: [],
+    }
+
+    const enriched = await attachRealisticLegs(mockDraft, { babyOnboard: true, isEv: true })
+    const leg = enriched.days[0].leg
+
+    expect(leg).toBeDefined()
+    expect(leg!.distanceKm).toBeGreaterThan(200) // Montélimar→Paris >> 200 km
+    expect(leg!.totalMinutes).toBeGreaterThan(360) // > 6 heures
+    expect(leg!.source).toMatch(/verified|seed|estimated/)
+  })
+
+  it("calcul Montélimar → Paris via haversine si OSRM indisponible (mode test)", () => {
+    // Coordonnées Montélimar : 44.56, 4.75 — Paris : 48.86, 2.35
+    // On vérifie le chemin haversine directement
+    const route = computeHaversineFallback({
+      fromLat: 44.56,
+      fromLng: 4.75,
+      toLat: 48.86,
+      toLng: 2.35,
+    })
+    expect(route.distanceKm).toBeGreaterThan(450)
+    expect(route.sourceStatus).toBe("estimated")
+
+    const leg = estimateRealisticLeg({
+      distanceKm: route.distanceKm,
+      freeFlowMinutes: route.durationMinutes,
+      date: "2026-08-08",
+      babyOnboard: true,
+      isEv: true,
+    })
+    // Plafond absolu : totalMinutes > 360 même en cas conservatif
+    expect(leg.totalMinutes).toBeGreaterThan(360)
+    // Ventilation lisible
+    expect(leg.drivingMinutes).toBeGreaterThan(0)
+    expect(leg.pauseMinutes).toBeGreaterThan(0)   // bébé
+    expect(leg.chargingMinutes).toBeGreaterThan(0) // EV
+  })
+
+  it("laisse leg undefined si drivingFromTo est absent", async () => {
+    const mockDraft: AiItineraryDraft = {
+      destination: "Lyon",
+      summary: "Test sans trajet",
+      days: [
+        {
+          date: "2026-08-10",
+          title: "Journée sur place",
+          activities: ["Visite du musée"],
+          lodgingHint: "Hôtel",
+          constraintNotes: [],
+          // pas de drivingFromTo
+        },
+      ],
+      constraintsApplied: [],
+    }
+    const enriched = await attachRealisticLegs(mockDraft, { babyOnboard: true, isEv: true })
+    expect(enriched.days[0].leg).toBeUndefined()
+  })
+
+  it("laisse leg undefined si la ville est inconnue (best-effort)", async () => {
+    const mockDraft: AiItineraryDraft = {
+      destination: "Nulle Part",
+      summary: "Test ville inconnue",
+      days: [
+        {
+          date: "2026-08-10",
+          title: "Trajet vers l'inconnu",
+          drivingFromTo: "Atlantis → Eldorado",
+          activities: [],
+          lodgingHint: "Hôtel",
+          constraintNotes: [],
+        },
+      ],
+      constraintsApplied: [],
+    }
+    const enriched = await attachRealisticLegs(mockDraft, { babyOnboard: true, isEv: true })
+    // Les villes sont inconnues → leg doit rester undefined
+    expect(enriched.days[0].leg).toBeUndefined()
+  })
+
+  it("le brouillon mock enrichi respecte le schéma Zod", async () => {
+    const mockReq: AiItineraryRequest = {
+      description: "Voyage test",
+      destination: "Marseille",
+      dateFrom: "2026-08-03",
+      dateTo: "2026-08-09",
+      constraints: [],
+      workDays: ["monday", "tuesday", "wednesday", "thursday"],
+    }
+    const draft = generateMockItinerary(mockReq)
+    const enriched = await attachRealisticLegs(draft, { babyOnboard: true, isEv: true })
+    expect(() => AiItineraryDraftSchema.parse(enriched)).not.toThrow()
   })
 })
 

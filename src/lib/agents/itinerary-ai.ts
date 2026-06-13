@@ -6,6 +6,11 @@
  * (`claude-sonnet-4-6`) en **forced tool use** pour garantir une sortie JSON,
  * validée par Zod. Toute erreur (réseau, schéma) retombe proprement sur le mock.
  *
+ * Après génération (chemin mock ou IA), `attachRealisticLegs` calcule côté
+ * serveur la durée réaliste de chaque journée avec trajet : parsing, géocodage,
+ * OSRM/seed/haversine, marges trafic/bébé/recharge. Le LLM ne produit jamais
+ * de durées ni de distances.
+ *
  * La clé API n'est lue que côté serveur — jamais exposée au client.
  */
 
@@ -17,6 +22,7 @@ import {
   type AiItineraryRequest,
 } from "./itinerary-types"
 import { generateMockItinerary } from "./itinerary-mock"
+import { attachRealisticLegs } from "./itinerary-legs"
 
 const MODEL = "claude-sonnet-4-6"
 
@@ -30,7 +36,11 @@ export async function generateItinerary(
 ): Promise<ItineraryGenerationResult> {
   const isLive = process.env.NEXT_PUBLIC_APP_MODE === "live"
   if (!isLive || !process.env.ANTHROPIC_API_KEY) {
-    return { draft: generateMockItinerary(req), source: "mock" }
+    const draft = await attachRealisticLegs(generateMockItinerary(req), {
+      babyOnboard: true,
+      isEv: true,
+    })
+    return { draft, source: "mock" }
   }
 
   try {
@@ -47,7 +57,13 @@ export async function generateItinerary(
       "hébergement avec poste de travail conforme.\n" +
       "3. Hébergements : toujours matelas ferme + climatisation.\n" +
       "4. Rythme adapté à un bébé (pauses, pas de surcharge).\n" +
-      `5. Appelle l'outil ${ITINERARY_TOOL_NAME} avec un itinéraire couvrant ` +
+      "5. N'écris JAMAIS de distances ni de durées de trajet dans les titres ou " +
+      "les activités : l'application calcule des temps réels tenant compte du trafic, " +
+      "des pauses bébé et des recharges du véhicule électrique. " +
+      "Garde `drivingFromTo` au format exact « Ville A → Ville B » (flèche Unicode).\n" +
+      "6. Propose un rythme réaliste pour un bébé à bord d'un véhicule électrique " +
+      "(pauses régulières, arrêts Supercharger intégrés, pas d'étape trop longue).\n" +
+      `7. Appelle l'outil ${ITINERARY_TOOL_NAME} avec un itinéraire couvrant ` +
       `du ${req.dateFrom} au ${req.dateTo}.`
 
     const user =
@@ -74,9 +90,15 @@ export async function generateItinerary(
     if (!parsed.success) {
       throw new Error(`Sortie IA invalide : ${parsed.error.issues[0]?.message ?? "schéma"}`)
     }
-    return { draft: parsed.data, source: "ai" }
+
+    const draft = await attachRealisticLegs(parsed.data, { babyOnboard: true, isEv: true })
+    return { draft, source: "ai" }
   } catch (err) {
     console.warn("[itinerary-ai] Repli sur le mock :", err instanceof Error ? err.message : err)
-    return { draft: generateMockItinerary(req), source: "mock" }
+    const draft = await attachRealisticLegs(generateMockItinerary(req), {
+      babyOnboard: true,
+      isEv: true,
+    })
+    return { draft, source: "mock" }
   }
 }
