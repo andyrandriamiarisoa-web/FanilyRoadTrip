@@ -8,6 +8,8 @@ Application PWA mobile-first en français pour planifier un voyage routier multi
 
 Voyage de référence : **Fresnes (94) ↔ Marseille** — mariage le 8 août 2026.
 
+📖 **[Guide d'utilisation complet](docs/GUIDE.md)** · 🔒 **[Sécurité](SECURITY.md)**
+
 ---
 
 ## Démarrage rapide
@@ -25,7 +27,14 @@ npm run verify               # pipeline qualité complète
 ANTHROPIC_API_KEY=sk-ant-...    # Clé Claude API (optionnel → mode MOCK)
 OPENCHARGEMAP_API_KEY=...       # Open Charge Map (optionnel → seed)
 NEXT_PUBLIC_APP_MODE=mock       # "mock" (défaut) | "live"
+TESLA_FLEET_API_BASE=...        # Base Fleet API régionale (optionnel → mock)
+TESLA_ACCESS_TOKEN=...          # Jeton Fleet API, serveur uniquement (optionnel)
+TESLA_PUBLIC_KEY_PEM=...        # Clé publique de domaine (/.well-known) (optionnel)
+TESLA_STATE_CACHE_TTL_SECONDS=300  # TTL cache d'état véhicule (plafonne le coût Fleet API)
 ```
+
+> Toutes les clés sont **serveur uniquement** et ne sont jamais exposées au
+> client. Voir [`SECURITY.md`](SECURITY.md).
 
 ## Scripts
 
@@ -35,9 +44,10 @@ NEXT_PUBLIC_APP_MODE=mock       # "mock" (défaut) | "live"
 | `npm run build` | Build production |
 | `npm run typecheck` | TypeScript strict (zéro erreur) |
 | `npm run lint` | ESLint + a11y |
-| `npm run test` | Vitest — 63 tests unitaires |
-| `npm run verify` | typecheck + lint + test + build |
+| `npm run test` | Vitest — 219 tests unitaires |
+| `npm run verify` | typecheck + lint + test + contraste + build |
 | `npm run contrast-audit` | Audit WCAG AA des couleurs du thème |
+| `npm run e2e` | Playwright — smoke + audit a11y (axe-core) |
 
 ## Déploiement Vercel (défaut)
 
@@ -54,12 +64,20 @@ Variables à configurer dans le dashboard Vercel : `ANTHROPIC_API_KEY`, `NEXT_PU
 
 **Netlify** : build command `npm run build`, publish directory `.next`, ajouter les env vars dans l'UI ou via `netlify deploy --prod --dir=.next`.
 
-## Fonctionnalités MVP
+## Fonctionnalités
 
-- Mode MOCK complet sans aucune clé API (seed Annexe A)
-- Modèle de recharge Tesla : Wh/km, courbe par paliers, multi-legs
-- Calendrier interactif jour par jour (trajet/télétravail/repos/événement)
-- Panel hébergements : score multi-critères transparent, badges à confirmer, deep links
-- Export JSON + partage par URL compressée (lz-string)
-- Thème nuit/clair, contraste WCAG AA ≥ 4,5:1 vérifié (16 paires)
-- PWA : manifest, service worker (production), page offline
+- **Mode MOCK complet** sans aucune clé API — entièrement démontrable hors-ligne
+- **Profil Foyer** éditable & versionné (IndexedDB), consommé par le planificateur
+- **Connexion Tesla** (mock-first) : sélection véhicule, lecture SoC ponctuelle + cache TTL
+- **Routage charge-aware** : Superchargeurs only, SoC départ réel/cible → arrivée cible
+- **Fusion des contraintes** : pauses bébé, blocage canicule 12h–16h, évitement télétravail, chronologie heure par heure
+- **Hébergements & workation** : conformité bureau/clim/5G/matelas, classement sans exclusion
+- **Génération IA** (Claude `claude-sonnet-4-6`, forced tool use → JSON validé Zod, mock-first)
+- **Budget** (ventilation + découpage Lambus), **bagages** bébé-aware, **import réservations**
+- **Collaboration** : vote d'activités partageable par URL (sans serveur)
+- **Export calendrier .ics**, **hors-ligne** robuste, **PWA** (manifest, service worker, page offline)
+- Thème nuit/clair, **contraste WCAG AA** vérifié + **audit a11y axe-core** (zéro violation critique)
+- En-têtes de sécurité (CSP/HSTS/…), clés serveur uniquement
+
+Détails d'usage : **[docs/GUIDE.md](docs/GUIDE.md)**. Décisions d'architecture :
+**[DECISIONS.md](DECISIONS.md)**. État d'avancement : **[CLAUDE.md](CLAUDE.md)**.
