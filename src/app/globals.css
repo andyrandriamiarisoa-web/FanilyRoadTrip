@@ -175,6 +175,34 @@ button, a, [role="button"], [role="link"] {
   border-radius: 9999px;
 }
 
+/* ── Onglets de navigation ────────────────────────────────────── */
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.nav-tab:hover {
+  background: var(--border-default);
+  border-color: var(--border-strong);
+}
+
+.nav-tab:active {
+  transform: scale(0.97);
+}
+
 /* ── Skeleton animation ───────────────────────────────────────── */
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 1; }
