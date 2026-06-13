@@ -9,7 +9,6 @@ export default function HomePage() {
   return (
     <div
       className="flex flex-col items-center justify-center flex-1 p-6 gap-8 text-center"
-      style={{ minHeight: "calc(100dvh - 36px)" }}
     >
       {/* Hero */}
       <div className="space-y-4 max-w-md">
@@ -43,51 +42,6 @@ export default function HomePage() {
           }}
         >
           Générer le voyage de référence
-        </Link>
-      </div>
-
-      <div className="flex gap-6">
-        <Link
-          href="/carnet"
-          className="text-sm font-medium underline underline-offset-4"
-          style={{ color: "var(--accent-vine-light)" }}
-        >
-          Voir le carnet
-        </Link>
-        <Link
-          href="/budget"
-          className="text-sm font-medium underline underline-offset-4"
-          style={{ color: "var(--accent-vine-light)" }}
-        >
-          Budget
-        </Link>
-        <Link
-          href="/bagages"
-          className="text-sm font-medium underline underline-offset-4"
-          style={{ color: "var(--accent-vine-light)" }}
-        >
-          Bagages
-        </Link>
-        <Link
-          href="/reservations"
-          className="text-sm font-medium underline underline-offset-4"
-          style={{ color: "var(--accent-vine-light)" }}
-        >
-          Réservations
-        </Link>
-        <Link
-          href="/collaboration"
-          className="text-sm font-medium underline underline-offset-4"
-          style={{ color: "var(--accent-vine-light)" }}
-        >
-          Vote activités
-        </Link>
-        <Link
-          href="/parametres"
-          className="text-sm font-medium underline underline-offset-4"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          Paramètres
         </Link>
       </div>
 

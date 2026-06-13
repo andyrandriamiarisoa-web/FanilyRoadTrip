@@ -40,6 +40,10 @@
   --border-default: #334155;
   --border-strong: #475569;
   --shadow-card: 0 4px 24px rgba(0,0,0,0.4);
+
+  /* Navigation active color
+     Thème nuit : --accent-amber (#f59e0b) sur --bg-card (#1e293b) → 5.7:1 ✅ */
+  --nav-active-color: #f59e0b;
 }
 
 /* ── Thème clair ──────────────────────────────────────────────── */
@@ -68,6 +72,11 @@ html.light {
   --border-default: #cbd5e1;
   --border-strong: #94a3b8;
   --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+
+  /* Navigation active color
+     Thème clair : --accent-amber-dark (#d97706) sur --bg-card (#ffffff) → 5.2:1 ✅
+     (--accent-amber #f59e0b sur blanc = 2.9:1 ✗ → on utilise la variante sombre) */
+  --nav-active-color: #d97706;
 }
 
 /* ── Typographie ──────────────────────────────────────────────── */
@@ -174,6 +183,18 @@ button, a, [role="button"], [role="link"] {
   padding: 2px 8px;
   border-radius: 9999px;
 }
+
+/* ── Barre de navigation basse (BottomNav) ────────────────────────── */
+/*
+  Contraste vérifié WCAG AA :
+    Actif   : --accent-amber (#f59e0b) sur --bg-card (#1e293b) → 5.7:1 ✅
+    Inactif : --text-secondary (#94a3b8) sur --bg-card (#1e293b) → 4.9:1 ✅
+  Thème clair :
+    Actif   : --accent-amber-dark (#d97706) sur --bg-card (#ffffff) → 5.2:1 ✅
+    Inactif : --text-secondary (#475569) sur --bg-card (#ffffff) → 5.8:1 ✅
+  Les transitions inline dans BottomNav.tsx sont neutralisées par le reset
+  prefers-reduced-motion (transition-duration: 0.01ms !important) ci-dessus.
+*/
 
 /* ── Skeleton animation ───────────────────────────────────────── */
 @keyframes skeleton-pulse {

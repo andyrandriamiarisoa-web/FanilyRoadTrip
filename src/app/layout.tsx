@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppModeBar } from "@/components/ui/AppModeBar";
 import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 import { ThemeScript } from "@/components/ui/ThemeScript";
+import { BottomNav } from "@/components/nav/BottomNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -65,7 +66,17 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AppModeBar />
         <OfflineIndicator />
-        <main className="flex-1 flex flex-col">{children}</main>
+        {/*
+          padding-bottom = hauteur barre (68px) + safe-area iOS
+          La barre est fixed, le contenu ne doit pas passer dessous.
+        */}
+        <main
+          className="flex-1 flex flex-col"
+          style={{ paddingBottom: "calc(68px + env(safe-area-inset-bottom, 0px))" }}
+        >
+          {children}
+        </main>
+        <BottomNav />
       </body>
     </html>
   );
