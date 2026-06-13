@@ -185,11 +185,25 @@ npm run verify       # Pipeline qualité complet
 ANTHROPIC_API_KEY       # Claude API (optionnel → mode MOCK)
 OPENCHARGEMAP_API_KEY   # Open Charge Map (optionnel → seed)
 NEXT_PUBLIC_APP_MODE    # "mock" | "live" (défaut: "mock")
-TESLA_FLEET_API_BASE    # Base Fleet API régionale (optionnel → VehicleProvider mock)
-TESLA_ACCESS_TOKEN      # Jeton d'accès Fleet API, serveur uniquement (optionnel)
+TESLA_CLIENT_ID         # OAuth Fleet API (flux authorization_code) — voir docs/TESLA.md
+TESLA_CLIENT_SECRET     # OAuth Fleet API, serveur uniquement
+TESLA_REDIRECT_URI      # .../api/tesla/callback (enregistrée côté Tesla Developer)
+TESLA_TOKEN_SECRET      # Clé AES-256-GCM chiffrant les jetons en cookie httpOnly
+TESLA_FLEET_API_BASE    # Base Fleet API régionale (optionnel → découverte auto via /users/region)
+TESLA_ACCESS_TOKEN      # Override dev : jeton statique, serveur uniquement (optionnel)
 TESLA_PUBLIC_KEY_PEM    # Clé publique de domaine servie sous /.well-known (optionnel)
 TESLA_STATE_CACHE_TTL_SECONDS  # TTL du cache d'état véhicule (défaut 300) — plafonne le coût Fleet API
 ```
+
+**OAuth Tesla complet (LIVE)** : flux `authorization_code` dans `/api/tesla/*`
+(`login` → consentement Tesla → `callback`), jetons access+refresh **chiffrés
+AES-256-GCM** dans un cookie httpOnly (`src/lib/vehicle/tesla-session.ts`),
+**rafraîchis automatiquement** avec rotation, base régionale découverte via
+`/api/1/users/region` (corrige le 403 « wrong region »), enregistrement de
+domaine via `/api/tesla/partner/register`. Commandes confort/charge legacy
+(`/api/vehicle/command`) — véhicules pré-2021 (ex. Raven) ; sinon l'app signale
+honnêtement l'exigence de commandes signées. Mock-first préservé (mode `mock`
+sans aucun secret). Guide complet : `docs/TESLA.md`.
 
 **Coût Fleet API (Tesla)** : la Fleet API facture chaque lecture `vehicle_data`
 et tout appel de statut < 500 (un sondage à la minute ≈ 10 $/mois/véhicule ;

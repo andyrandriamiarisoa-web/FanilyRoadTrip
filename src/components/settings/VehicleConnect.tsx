@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { getSelectedVehicle, saveSelectedVehicle } from "@/lib/db";
-import type { Vehicle, VehicleState } from "@/lib/vehicle/types";
+import type {
+  CommandResult,
+  Vehicle,
+  VehicleCommand,
+  VehicleState,
+} from "@/lib/vehicle/types";
 
 type Phase = "idle" | "listing" | "choosing" | "reading" | "connected" | "error";
 
@@ -13,6 +18,20 @@ const CONNECTIVITY_LABEL: Record<VehicleState["connectivity"], string> = {
   offline: "Hors ligne",
 };
 
+interface Banner {
+  kind: "success" | "error";
+  text: string;
+}
+
+/** Commandes proposées dans l'UI (confort + charge ; aucune commande de conduite). */
+const COMMAND_BUTTONS: { label: string; command: VehicleCommand }[] = [
+  { label: "Réveiller", command: { type: "wake" } },
+  { label: "Climatisation ON", command: { type: "start_climate" } },
+  { label: "Climatisation OFF", command: { type: "stop_climate" } },
+  { label: "Démarrer la charge", command: { type: "start_charging" } },
+  { label: "Arrêter la charge", command: { type: "stop_charging" } },
+];
+
 export function VehicleConnect() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [mode, setMode] = useState<"mock" | "tesla" | null>(null);
@@ -20,6 +39,10 @@ export function VehicleConnect() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [state, setState] = useState<VehicleState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [banner, setBanner] = useState<Banner | null>(null);
+  const [commandResult, setCommandResult] = useState<CommandResult | null>(null);
+  const [busyCommand, setBusyCommand] = useState<string | null>(null);
+  const [chargeLimit, setChargeLimit] = useState(80);
 
   const readState = useCallback(async (vehicleId: string) => {
     setPhase("reading");
@@ -27,6 +50,12 @@ export function VehicleConnect() {
     try {
       const res = await fetch(`/api/vehicle/state?vehicleId=${encodeURIComponent(vehicleId)}`);
       const data = await res.json();
+      if (data.needsAuth) {
+        // Session expirée / non connecté : on repasse à l'écran de connexion.
+        setPhase("idle");
+        setMode("tesla");
+        return;
+      }
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Lecture impossible");
       setState(data.state as VehicleState);
       setMode(data.mode);
@@ -50,12 +79,39 @@ export function VehicleConnect() {
     };
   }, [readState]);
 
+  // Retour du flux OAuth Tesla (?tesla=connected|error) : message + nettoyage URL.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("tesla");
+    if (!status) return;
+    const reason = params.get("reason");
+    // Retire les paramètres de l'URL sans recharger la page.
+    window.history.replaceState({}, "", window.location.pathname);
+
+    // Les mises à jour d'état sont déportées hors du corps de l'effet (évite
+    // la règle « set-state-in-effect » / les rendus en cascade).
+    void (async () => {
+      if (status === "connected") {
+        setBanner({ kind: "success", text: "Compte Tesla connecté." });
+        await connect();
+      } else if (status === "error") {
+        setBanner({ kind: "error", text: oauthErrorMessage(reason) });
+      }
+    })();
+  }, []);
+
   async function connect() {
     setPhase("listing");
     setError(null);
     try {
       const res = await fetch("/api/vehicle/list");
       const data = await res.json();
+      if (data.needsAuth) {
+        // Mode live non connecté → on lance le flux OAuth Tesla (redirection).
+        window.location.href = "/api/tesla/auth/login";
+        return;
+      }
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Connexion impossible");
       setVehicles(data.vehicles as Vehicle[]);
       setMode(data.mode);
@@ -72,6 +128,50 @@ export function VehicleConnect() {
     await readState(v.id);
   }
 
+  async function disconnect() {
+    await fetch("/api/tesla/auth/logout", { method: "POST" });
+    setPhase("idle");
+    setMode(null);
+    setVehicles([]);
+    setState(null);
+    setCommandResult(null);
+    setBanner({ kind: "success", text: "Compte Tesla déconnecté." });
+  }
+
+  async function runCommand(command: VehicleCommand, key: string) {
+    if (!selectedId) return;
+    setBusyCommand(key);
+    setCommandResult(null);
+    try {
+      const res = await fetch("/api/vehicle/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicleId: selectedId, command }),
+      });
+      const data = await res.json();
+      if (data.needsAuth) {
+        window.location.href = "/api/tesla/auth/login";
+        return;
+      }
+      const result: CommandResult = data.result ?? {
+        ok: false,
+        message: data.error ?? "Commande impossible.",
+        requiresSignedCommand: false,
+      };
+      setCommandResult(result);
+      // En cas de succès, l'état a pu changer : on le relit.
+      if (result.ok) void readState(selectedId);
+    } catch (e) {
+      setCommandResult({
+        ok: false,
+        message: e instanceof Error ? e.message : "Erreur de commande.",
+        requiresSignedCommand: false,
+      });
+    } finally {
+      setBusyCommand(null);
+    }
+  }
+
   return (
     <section className="card p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -80,7 +180,7 @@ export function VehicleConnect() {
             Connexion Tesla
           </h2>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-            Lecture ponctuelle de l&apos;état de charge — jamais de suivi continu.
+            Lecture de l&apos;état de charge et commandes confort — jamais de suivi continu.
           </p>
         </div>
         {mode && (
@@ -89,6 +189,19 @@ export function VehicleConnect() {
           </span>
         )}
       </div>
+
+      {banner && (
+        <p
+          className="text-sm rounded-lg px-3 py-2"
+          role="status"
+          style={{
+            background: banner.kind === "success" ? "var(--badge-verified-bg)" : "var(--badge-danger-bg)",
+            color: banner.kind === "success" ? "var(--badge-verified-text)" : "var(--badge-danger-text)",
+          }}
+        >
+          {banner.text}
+        </p>
+      )}
 
       {(phase === "idle" || phase === "error") && (
         <Button onClick={connect} loading={false}>
@@ -139,12 +252,9 @@ export function VehicleConnect() {
             <Stat label="État de charge" value={`${state.soc} %`} />
             <Stat label="Autonomie estimée" value={`${state.estimatedRangeKm} km`} />
             <Stat label="Limite de charge" value={`${state.chargeLimitSoc} %`} />
-            <Stat
-              label="Connectivité"
-              value={CONNECTIVITY_LABEL[state.connectivity]}
-            />
+            <Stat label="Connectivité" value={CONNECTIVITY_LABEL[state.connectivity]} />
           </dl>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Button variant="secondary" size="sm" onClick={() => selectedId && readState(selectedId)}>
               Rafraîchir l&apos;état
             </Button>
@@ -152,6 +262,20 @@ export function VehicleConnect() {
               Lu le {new Date(state.readAt).toLocaleString("fr-FR")}
             </span>
           </div>
+
+          <CommandPanel
+            busyCommand={busyCommand}
+            chargeLimit={chargeLimit}
+            onChargeLimit={setChargeLimit}
+            onCommand={runCommand}
+            result={commandResult}
+          />
+
+          {mode === "tesla" && (
+            <Button variant="secondary" size="sm" onClick={disconnect}>
+              Déconnecter le compte Tesla
+            </Button>
+          )}
         </div>
       )}
 
@@ -162,6 +286,113 @@ export function VehicleConnect() {
       )}
     </section>
   );
+}
+
+function CommandPanel({
+  busyCommand,
+  chargeLimit,
+  onChargeLimit,
+  onCommand,
+  result,
+}: {
+  busyCommand: string | null;
+  chargeLimit: number;
+  onChargeLimit: (v: number) => void;
+  onCommand: (command: VehicleCommand, key: string) => void;
+  result: CommandResult | null;
+}) {
+  return (
+    <div className="space-y-2 pt-1" role="group" aria-label="Commandes du véhicule">
+      <p className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+        COMMANDES
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {COMMAND_BUTTONS.map((b) => (
+          <button
+            key={b.label}
+            type="button"
+            disabled={busyCommand !== null}
+            onClick={() => onCommand(b.command, b.label)}
+            className="text-sm px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-primary)",
+            }}
+          >
+            {busyCommand === b.label ? "…" : b.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          <span className="block text-xs mb-1">Limite de charge (%)</span>
+          <input
+            type="number"
+            min={50}
+            max={100}
+            value={chargeLimit}
+            onChange={(e) => onChargeLimit(Number(e.target.value))}
+            className="w-24 px-2 py-2 rounded-lg text-sm"
+            style={{
+              background: "var(--bg-base)",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-primary)",
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={busyCommand !== null}
+          onClick={() =>
+            onCommand({ type: "set_charge_limit", percent: clampLimit(chargeLimit) }, "set_charge_limit")
+          }
+          className="text-sm px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
+          style={{
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-primary)",
+          }}
+        >
+          {busyCommand === "set_charge_limit" ? "…" : "Appliquer la limite"}
+        </button>
+      </div>
+
+      {result && (
+        <p
+          className="text-sm rounded-lg px-3 py-2"
+          role={result.ok ? "status" : "alert"}
+          style={{
+            background: result.ok ? "var(--badge-verified-bg)" : "var(--badge-danger-bg)",
+            color: result.ok ? "var(--badge-verified-text)" : "var(--badge-danger-text)",
+          }}
+        >
+          {result.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function clampLimit(n: number): number {
+  if (!Number.isFinite(n)) return 80;
+  return Math.max(50, Math.min(100, Math.round(n)));
+}
+
+function oauthErrorMessage(reason: string | null): string {
+  switch (reason) {
+    case "state":
+      return "Connexion Tesla refusée (jeton de sécurité invalide). Réessayez.";
+    case "secret":
+      return "Configuration serveur incomplète (secret de chiffrement manquant).";
+    case "config":
+      return "Configuration OAuth Tesla absente côté serveur.";
+    case "exchange":
+      return "Échec de l'échange du code OAuth avec Tesla. Réessayez.";
+    default:
+      return "La connexion Tesla a échoué. Réessayez.";
+  }
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
