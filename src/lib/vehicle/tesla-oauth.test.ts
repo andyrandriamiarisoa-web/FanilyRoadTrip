@@ -4,6 +4,7 @@ import {
   discoverRegionBaseUrl,
   exchangeCodeForTokens,
   refreshAccessToken,
+  registerPartnerAllRegions,
   TeslaOAuthError,
   TESLA_AUTH_BASE,
   TESLA_SCOPES,
@@ -71,6 +72,60 @@ describe("refreshAccessToken", () => {
       jsonResponse({ access_token: "na", refresh_token: "nr", expires_in: 28800 })) as unknown as typeof fetch
     const tokens = await refreshAccessToken({ refreshToken: "old", clientId: "cid", fetchImpl })
     expect(tokens.refreshToken).toBe("nr")
+  })
+})
+
+describe("registerPartnerAllRegions", () => {
+  it("enregistre chaque région et rapporte un statut par région", async () => {
+    const calls: string[] = []
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      if (url.endsWith("/oauth2/v3/token")) {
+        return jsonResponse({ access_token: "partner-token", expires_in: 28800 })
+      }
+      // /api/1/partner_accounts
+      return jsonResponse({ response: { domain: "app.example" } })
+    }) as unknown as typeof fetch
+
+    const results = await registerPartnerAllRegions({
+      config,
+      domain: "app.example",
+      regions: [
+        "https://fleet-api.prd.na.vn.cloud.tesla.com",
+        "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+      ],
+      fetchImpl,
+    })
+
+    expect(results).toHaveLength(2)
+    expect(results.every((r) => r.ok)).toBe(true)
+    expect(calls.some((u) => u.includes("/api/1/partner_accounts"))).toBe(true)
+  })
+
+  it("collecte les échecs sans interrompre les autres régions", async () => {
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith("/oauth2/v3/token")) {
+        return jsonResponse({ access_token: "partner-token", expires_in: 28800 })
+      }
+      // NA échoue, EU réussit
+      if (url.includes(".na.")) return new Response("nope", { status: 403 })
+      return jsonResponse({ response: { domain: "app.example" } })
+    }) as unknown as typeof fetch
+
+    const results = await registerPartnerAllRegions({
+      config,
+      domain: "app.example",
+      regions: [
+        "https://fleet-api.prd.na.vn.cloud.tesla.com",
+        "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+      ],
+      fetchImpl,
+    })
+
+    expect(results.find((r) => r.audience.includes(".na."))?.ok).toBe(false)
+    expect(results.find((r) => r.audience.includes(".eu."))?.ok).toBe(true)
   })
 })
 

@@ -30,6 +30,14 @@ function toPem(base64: string, label: string): string {
   return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----`;
 }
 
+/** Libellé court de région à partir de la base Fleet API. */
+function regionLabel(audience: string): string {
+  if (audience.includes(".eu.")) return "Europe";
+  if (audience.includes(".na.")) return "Amérique du Nord";
+  if (audience.includes(".cn")) return "Chine";
+  return audience;
+}
+
 async function generateMaterial(): Promise<Generated> {
   const keyPair = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
@@ -76,10 +84,16 @@ export function TeslaSetupAssistant() {
     try {
       const res = await fetch("/api/tesla/partner/register", { method: "POST" });
       const data = await res.json();
+      const regions: { audience: string; ok: boolean; error?: string }[] = data.regions ?? [];
       if (res.ok && data.ok) {
-        setRegisterMsg({ ok: true, text: `Domaine ${data.domain} enregistré (${data.audience}).` });
+        const okList = regions.filter((r) => r.ok).map((r) => regionLabel(r.audience)).join(", ");
+        setRegisterMsg({ ok: true, text: `Domaine ${data.domain} enregistré : ${okList || "OK"}.` });
       } else {
-        setRegisterMsg({ ok: false, text: data.error ?? "Enregistrement impossible." });
+        const detail = regions
+          .filter((r) => !r.ok)
+          .map((r) => `${regionLabel(r.audience)} : ${r.error}`)
+          .join(" · ");
+        setRegisterMsg({ ok: false, text: detail || data.error || "Enregistrement impossible." });
       }
     } catch (e) {
       setRegisterMsg({
