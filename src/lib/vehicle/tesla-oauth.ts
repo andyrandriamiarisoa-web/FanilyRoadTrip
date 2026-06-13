@@ -29,6 +29,17 @@ export const TESLA_SCOPES = [
 export const TESLA_DEFAULT_REGION_BASE =
   "https://fleet-api.prd.na.vn.cloud.tesla.com"
 
+/**
+ * Bases régionales Fleet API publiques. On enregistre le domaine dans **toutes**
+ * pour éviter le 412 « wrong region » : le compte d'un utilisateur n'est dans
+ * qu'une région, mais on ne la connaît pas au moment de l'enregistrement
+ * (jeton partenaire, non lié à un utilisateur).
+ */
+export const TESLA_REGION_BASES = [
+  "https://fleet-api.prd.na.vn.cloud.tesla.com",
+  "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+] as const
+
 export interface TeslaOAuthConfig {
   clientId: string
   clientSecret: string
@@ -211,6 +222,50 @@ export async function registerPartnerAccount(args: {
       res.status,
     )
   }
+}
+
+export interface RegionRegistration {
+  audience: string
+  ok: boolean
+  error?: string
+}
+
+/**
+ * Enregistre le domaine dans plusieurs régions (au moins une doit réussir).
+ * Chaque région a son propre jeton partenaire (audience = base régionale).
+ * Les échecs par région sont collectés, jamais masqués.
+ */
+export async function registerPartnerAllRegions(args: {
+  config: TeslaOAuthConfig
+  domain: string
+  regions?: readonly string[]
+  fetchImpl?: typeof fetch
+}): Promise<RegionRegistration[]> {
+  const regions = Array.from(new Set(args.regions ?? TESLA_REGION_BASES))
+  const results: RegionRegistration[] = []
+  for (const audience of regions) {
+    try {
+      const partnerToken = await getPartnerToken({
+        config: args.config,
+        audience,
+        fetchImpl: args.fetchImpl,
+      })
+      await registerPartnerAccount({
+        audience,
+        domain: args.domain,
+        partnerToken,
+        fetchImpl: args.fetchImpl,
+      })
+      results.push({ audience, ok: true })
+    } catch (err) {
+      results.push({
+        audience,
+        ok: false,
+        error: err instanceof Error ? err.message : "Erreur d'enregistrement",
+      })
+    }
+  }
+  return results
 }
 
 interface RegionResponse {

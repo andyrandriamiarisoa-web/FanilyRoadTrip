@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server"
 import {
-  TESLA_DEFAULT_REGION_BASE,
-  getPartnerToken,
+  TESLA_REGION_BASES,
   getTeslaOAuthConfig,
-  registerPartnerAccount,
+  registerPartnerAllRegions,
 } from "@/lib/vehicle/tesla-oauth"
 
 /**
- * Enregistrement **unique** du domaine de l'application auprès de la Fleet API
- * (par région). Sans cette étape, les endpoints véhicule renvoient 403
- * « Account must be registered in the current region ».
+ * Enregistrement **unique** du domaine de l'application auprès de la Fleet API,
+ * dans **toutes les régions** (NA + EU, et la base d'env si fournie). Sans cette
+ * étape — ou si elle est faite dans la mauvaise région — les endpoints véhicule
+ * renvoient 403/412 (« Account must be registered in the current region »).
  *
- * Le domaine est dérivé de `TESLA_REDIRECT_URI`. La région cible vient de
- * `TESLA_FLEET_API_BASE` (sinon base par défaut). À appeler une fois après
- * avoir hébergé la clé publique sous /.well-known.
+ * Le domaine est dérivé de `TESLA_REDIRECT_URI`.
  */
 export const runtime = "nodejs"
 
@@ -26,7 +24,6 @@ export async function POST() {
     )
   }
 
-  const audience = process.env.TESLA_FLEET_API_BASE || TESLA_DEFAULT_REGION_BASE
   let domain: string
   try {
     domain = new URL(config.redirectUri).host
@@ -37,13 +34,15 @@ export async function POST() {
     )
   }
 
-  try {
-    const partnerToken = await getPartnerToken({ config, audience })
-    await registerPartnerAccount({ audience, domain, partnerToken })
-    return NextResponse.json({ ok: true, domain, audience })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur d'enregistrement"
-    console.error("[tesla/partner/register]", message)
-    return NextResponse.json({ ok: false, error: message }, { status: 502 })
-  }
+  // Régions cibles : les bases publiques + l'éventuelle base d'environnement.
+  const envBase = process.env.TESLA_FLEET_API_BASE
+  const regions = envBase ? [...TESLA_REGION_BASES, envBase] : [...TESLA_REGION_BASES]
+
+  const results = await registerPartnerAllRegions({ config, domain, regions })
+  const anyOk = results.some((r) => r.ok)
+
+  return NextResponse.json(
+    { ok: anyOk, domain, regions: results },
+    { status: anyOk ? 200 : 502 },
+  )
 }
