@@ -14,6 +14,7 @@
 
 import type { LodgingOption } from "@/types"
 import COVERAGE from "@/data/5g-coverage.json"
+import COWORKING from "@/data/coworking.json"
 
 export type ConformityStatus = "conforme" | "à confirmer" | "non conforme"
 
@@ -27,6 +28,23 @@ interface CoverageRow {
 
 const COVERAGE_ROWS = COVERAGE as CoverageRow[]
 
+interface CoworkingRow {
+  commune: string
+  name: string
+  minutesBySkateboard: number
+  hasFiber: boolean
+  hasAc: boolean
+}
+
+const COWORKING_ROWS = COWORKING as CoworkingRow[]
+
+export interface SharedOffice {
+  name: string
+  minutesBySkateboard: number
+  hasFiber: boolean
+  hasAc: boolean
+}
+
 export interface WorkationContext {
   requiresDeskCm: number
   requiresFiber: boolean
@@ -35,6 +53,12 @@ export interface WorkationContext {
   firmMattressRequired: boolean
   coverageQuality?: CoverageQuality
   coverageMbps?: number
+  /** Le foyer autorise un bureau partagé à proximité comme alternative. */
+  allowSharedOffice?: boolean
+  /** Distance maximale tolérée pour un bureau partagé (min de skateboard). */
+  maxOfficeMinutesSkateboard?: number
+  /** Bureau partagé connu près du lieu de couchage (le cas échéant). */
+  sharedOffice?: SharedOffice | null
 }
 
 export interface WorkationCriterion {
@@ -49,6 +73,14 @@ export interface WorkationAssessment {
   criteria: WorkationCriterion[]
   /** 0–100, pour le classement (jamais pour exclure). */
   conformityScore: number
+  /** Bureau partagé proche utilisé pour satisfaire le poste de travail. */
+  sharedOfficeUsed: SharedOffice | null
+  /**
+   * Late checkout assoupli : un bureau partagé proche évite de devoir
+   * travailler dans la chambre jusqu'au départ, donc l'exigence de late
+   * checkout n'est plus bloquante.
+   */
+  lateCheckoutSoftened: boolean
 }
 
 /** Normalise un nom de commune (minuscule, sans accents/apostrophes). */
@@ -71,6 +103,22 @@ export function getCoverageForCommune(
   return row ? { quality: row.quality, estimatedMbps: row.estimatedMbps } : null
 }
 
+/** Bureau partagé connu pour une commune (le plus proche), sinon null. */
+export function getCoworkingForCommune(commune: string): SharedOffice | null {
+  const target = normalizeCommune(commune)
+  const rows = COWORKING_ROWS.filter((r) => normalizeCommune(r.commune) === target)
+  if (rows.length === 0) return null
+  const closest = rows.reduce((a, b) =>
+    b.minutesBySkateboard < a.minutesBySkateboard ? b : a,
+  )
+  return {
+    name: closest.name,
+    minutesBySkateboard: closest.minutesBySkateboard,
+    hasFiber: closest.hasFiber,
+    hasAc: closest.hasAc,
+  }
+}
+
 const STATUS_SCORE: Record<ConformityStatus, number> = {
   conforme: 100,
   "à confirmer": 60,
@@ -90,15 +138,30 @@ export function assessWorkation(
 ): WorkationAssessment {
   const criteria: WorkationCriterion[] = []
 
-  // Bureau : présence requise, dimension à confirmer si signalée.
-  if (!lodging.amenities.desk) {
+  // Bureau partagé proche utilisable (alternative au poste en chambre) ?
+  const office = ctx.sharedOffice ?? null
+  const sharedOfficeUsable =
+    (ctx.allowSharedOffice ?? false) &&
+    office !== null &&
+    office.minutesBySkateboard <= (ctx.maxOfficeMinutesSkateboard ?? 10)
+
+  // Bureau : poste en chambre OU bureau partagé proche.
+  const lodgingDeskConforme = lodging.amenities.desk && !lodging.toConfirm.includes("desk32")
+  if (lodgingDeskConforme) {
     criteria.push({
       key: "desk",
       label: "Bureau",
-      status: "non conforme",
-      detail: "Aucun poste de travail signalé.",
+      status: "conforme",
+      detail: `Bureau ≥ ${ctx.requiresDeskCm} cm.`,
     })
-  } else if (lodging.toConfirm.includes("desk32")) {
+  } else if (sharedOfficeUsable && office) {
+    criteria.push({
+      key: "desk",
+      label: "Bureau",
+      status: "conforme",
+      detail: `Bureau partagé « ${office.name} » à ${office.minutesBySkateboard} min en skateboard.`,
+    })
+  } else if (lodging.amenities.desk) {
     criteria.push({
       key: "desk",
       label: "Bureau",
@@ -109,8 +172,8 @@ export function assessWorkation(
     criteria.push({
       key: "desk",
       label: "Bureau",
-      status: "conforme",
-      detail: `Bureau ≥ ${ctx.requiresDeskCm} cm.`,
+      status: "non conforme",
+      detail: "Aucun poste de travail (ni en chambre, ni en bureau partagé proche).",
     })
   }
 
@@ -158,7 +221,15 @@ export function assessWorkation(
     criteria.reduce((s, c) => s + STATUS_SCORE[c.status], 0) / criteria.length,
   )
 
-  return { overall, criteria, conformityScore }
+  return {
+    overall,
+    criteria,
+    conformityScore,
+    sharedOfficeUsed: sharedOfficeUsable ? office : null,
+    // Un bureau partagé proche dispense de travailler dans la chambre jusqu'au
+    // départ : l'exigence de late checkout devient non bloquante.
+    lateCheckoutSoftened: sharedOfficeUsable,
+  }
 }
 
 export interface WorkationRankedLodging {

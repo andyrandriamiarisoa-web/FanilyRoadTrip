@@ -45,6 +45,8 @@ export const DEFAULT_FAMILY_PROFILE: FamilyProfile = {
     requiresFiber: true,
     fallback5G: true,
     lateCheckoutHour: 11,
+    allowSharedOffice: true,
+    maxOfficeMinutesSkateboard: 10,
   },
   driving: {
     maxSegmentMinutes: 140,

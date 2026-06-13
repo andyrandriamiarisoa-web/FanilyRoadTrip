@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   assessWorkation,
   getCoverageForCommune,
+  getCoworkingForCommune,
   rankForWorkationNight,
   recommendForWorkationNight,
   type WorkationContext,
@@ -90,6 +91,56 @@ describe("assessWorkation", () => {
   it("couverture inconnue → connectivité à confirmer", () => {
     const a = assessWorkation(lodging(), ctx({ coverageQuality: undefined }))
     expect(a.criteria.find((c) => c.key === "connectivity")?.status).toBe("à confirmer")
+  })
+})
+
+describe("bureau partagé à proximité (skateboard)", () => {
+  const noDesk = lodging({
+    amenities: { ac: true, parking: true, evCharger: false, desk: false },
+  })
+  const office = { name: "Coworking Test", minutesBySkateboard: 7, hasFiber: true, hasAc: true }
+
+  it("getCoworkingForCommune trouve le bureau le plus proche", () => {
+    expect(getCoworkingForCommune("Dijon")?.name).toMatch(/coworking/i)
+    expect(getCoworkingForCommune("Tombouctou")).toBeNull()
+  })
+
+  it("un bureau partagé proche rend le critère bureau conforme malgré l'absence en chambre", () => {
+    const a = assessWorkation(
+      noDesk,
+      ctx({ allowSharedOffice: true, maxOfficeMinutesSkateboard: 10, sharedOffice: office }),
+    )
+    const desk = a.criteria.find((c) => c.key === "desk")
+    expect(desk?.status).toBe("conforme")
+    expect(desk?.detail).toMatch(/skateboard/i)
+    expect(a.sharedOfficeUsed?.name).toBe("Coworking Test")
+  })
+
+  it("assouplit le late checkout quand un bureau partagé proche est utilisable", () => {
+    const a = assessWorkation(
+      noDesk,
+      ctx({ allowSharedOffice: true, maxOfficeMinutesSkateboard: 10, sharedOffice: office }),
+    )
+    expect(a.lateCheckoutSoftened).toBe(true)
+  })
+
+  it("ignore un bureau partagé trop loin (au-delà du seuil skateboard)", () => {
+    const far = { ...office, minutesBySkateboard: 14 }
+    const a = assessWorkation(
+      noDesk,
+      ctx({ allowSharedOffice: true, maxOfficeMinutesSkateboard: 10, sharedOffice: far }),
+    )
+    expect(a.criteria.find((c) => c.key === "desk")?.status).toBe("non conforme")
+    expect(a.lateCheckoutSoftened).toBe(false)
+  })
+
+  it("respecte le refus du bureau partagé (allowSharedOffice = false)", () => {
+    const a = assessWorkation(
+      noDesk,
+      ctx({ allowSharedOffice: false, maxOfficeMinutesSkateboard: 10, sharedOffice: office }),
+    )
+    expect(a.criteria.find((c) => c.key === "desk")?.status).toBe("non conforme")
+    expect(a.lateCheckoutSoftened).toBe(false)
   })
 })
 
