@@ -7,9 +7,11 @@ import { test, expect } from "@playwright/test"
 test("home page loads with correct title and navigation links", async ({ page }) => {
   await page.goto("/")
   await expect(page).toHaveTitle(/Odyssée/)
-  // Main navigation links (assert by href — labels are descriptive, not "plan"/"carnet")
-  await expect(page.locator('a[href="/plan"]')).toBeVisible()
-  await expect(page.locator('a[href="/carnet"]')).toBeVisible()
+  // Persistent bottom navigation bar exposes the main destinations.
+  // Scope to the nav landmark — /plan also appears as the hero CTA on this page.
+  const nav = page.getByRole("navigation", { name: /navigation principale/i })
+  await expect(nav.locator('a[href="/plan"]')).toBeVisible()
+  await expect(nav.locator('a[href="/carnet"]')).toBeVisible()
 })
 
 test("home page exposes a main landmark", async ({ page }) => {
