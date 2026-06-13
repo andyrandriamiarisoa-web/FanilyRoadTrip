@@ -9,6 +9,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | P0–P6 | Fondations, charge Tesla, providers, agents, carte, hébergements, PWA, CI/CD | ✅ mergé |
 | M1 | **Profil Foyer éditable & versionné** (IndexedDB, consommé par le planificateur) | ✅ |
 | M3 | **Connexion Tesla mock-first** (`VehicleProvider`, sélection véhicule, lecture SoC ponctuelle) | ✅ |
+| M4 | **Routage charge-aware** (`RoutePlanner`, Superchargeurs only, SoC départ réel/cible → arrivée cible, préconditionnement) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -30,6 +31,17 @@ véhicule → jauge SoC + autonomie, source affichée (mock/réel), sélection p
 Clé publique de domaine servie via `/.well-known/.../com.tesla.3p.public-key.pem`
 depuis `TESLA_PUBLIC_KEY_PEM` (404 si absente). *Prochaine étape : alimenter le
 `RoutePlanner` (M4) avec le SoC réel/cible.*
+
+**Routage charge-aware (M4)** : interface `RoutePlanner` (`src/lib/routing/`) +
+`SeedRoutePlanner` déterministe (option B « moteur maison »). Glouton « plus loin
+atteignable » : Superchargeurs filtrés par **détour réel** `d(O→C)+d(C→D)−d(O→D)`
+(robuste aux coudes autoroutiers), insertion d'arrêts dès que le SoC frôlerait le
+buffer de sécurité, charge plafonnée à 80 % (fenêtre batterie), respect du SoC
+d'arrivée cible. Chaque arrêt porte un rappel de **préconditionnement**. Infaisabilité
+signalée honnêtement (jamais masquée). Exposé via `/api/route/plan` ; UI `/plan`
+(`ChargePlanner`) avec SoC de départ **réel** (lu du véhicule M3) ou **cible**.
+Testé sur le trajet fixture Fresnes→Marseille (arrêts cohérents, arrivée respectée).
+*Prochaine étape : fusionner ces arrêts avec les pauses bébé / canicule / télétravail (M5).*
 
 ## Commandes essentielles
 

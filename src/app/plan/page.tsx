@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PlanGenerator } from "@/components/wizard/PlanGenerator";
+import { ChargePlanner } from "@/components/routing/ChargePlanner";
 
 export const metadata: Metadata = {
   title: "Générer le voyage",
@@ -22,6 +23,8 @@ export default function PlanPage() {
       </header>
 
       <PlanGenerator />
+
+      <ChargePlanner />
     </div>
   );
 }
