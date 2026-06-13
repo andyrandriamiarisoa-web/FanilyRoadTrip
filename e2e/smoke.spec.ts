@@ -209,3 +209,22 @@ test("fusion des contraintes — canicule bloque la conduite 12h–16h", async (
   })
   await expect(page.getByText(/Canicule — pas de conduite/i).first()).toBeVisible()
 })
+
+// ---------------------------------------------------------------------------
+// Hébergements & Workation (M6)
+// ---------------------------------------------------------------------------
+
+test("hébergement — conformité workation affichée et classée (non exclue)", async ({ page }) => {
+  // Génère le plan de référence puis ouvre une étape-nuit.
+  await page.goto("/plan")
+  await page.getByRole("button", { name: /générer le voyage/i }).click()
+  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
+
+  // Déplie une journée à Dijon (séjour avec hébergement).
+  await page.getByRole("button", { name: /dijon/i }).first().click()
+
+  // Le bloc de conformité télétravail apparaît (l'hébergement est classé,
+  // jamais éliminé — un statut de conformité est toujours affiché).
+  await expect(page.getByText(/Conformité télétravail/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/Connectivité/i).first()).toBeVisible()
+})

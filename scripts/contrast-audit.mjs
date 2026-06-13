@@ -14,6 +14,7 @@ const PAIRS = [
   ["#93c5fd", "#1e3a5f", "badge-seed-text on badge-seed-bg"],
   ["#fde68a", "#3b2f00", "badge-estimated-text on badge-estimated-bg"],
   ["#6ee7b7", "#064e3b", "badge-verified-text on badge-verified-bg"],
+  ["#fca5a5", "#4c1414", "badge-danger-text on badge-danger-bg"],
   // Light theme
   ["#0f172a", "#f8fafc", "text-primary on bg-base (light)"],
   ["#475569", "#ffffff", "text-secondary on bg-card (light)"],
@@ -21,6 +22,7 @@ const PAIRS = [
   ["#1e40af", "#dbeafe", "badge-seed-text on badge-seed-bg (light)"],
   ["#92400e", "#fef3c7", "badge-estimated-text on badge-estimated-bg (light)"],
   ["#065f46", "#d1fae5", "badge-verified-text on badge-verified-bg (light)"],
+  ["#991b1b", "#fee2e2", "badge-danger-text on badge-danger-bg (light)"],
 ];
 
 function hexToRgb(hex) {

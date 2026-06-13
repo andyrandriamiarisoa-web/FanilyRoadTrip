@@ -1,9 +1,17 @@
 "use client";
 
-import type { DayPlan, LodgingOption } from "@/types";
+import { useEffect, useState } from "react";
+import type { DayPlan, FamilyProfile, LodgingOption } from "@/types";
 import { SourceBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { generateBookingLinks } from "@/lib/providers/deeplinks";
+import { loadActiveProfile } from "@/lib/db";
+import {
+  assessWorkation,
+  getCoverageForCommune,
+  type ConformityStatus,
+  type WorkationAssessment,
+} from "@/lib/lodging/workation";
 
 interface LodgingPanelProps {
   day: DayPlan;
@@ -25,7 +33,33 @@ const TO_CONFIRM_LABELS: Record<string, string> = {
 };
 
 export function LodgingPanel({ day, selectedId, onSelect }: LodgingPanelProps) {
+  const [profile, setProfile] = useState<FamilyProfile | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    loadActiveProfile()
+      .then((p) => active && setProfile(p))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (!day.lodging) return null;
+
+  const lodging = day.lodging;
+  const workNight = day.workStatus === "full" || day.workStatus === "partial";
+  const workation: WorkationAssessment | null = profile
+    ? assessWorkation(lodging, {
+        requiresDeskCm: profile.work.requiresDeskCm,
+        requiresFiber: profile.work.requiresFiber,
+        fallback5G: profile.work.fallback5G,
+        acRequired: profile.medical.acRequired,
+        firmMattressRequired: profile.medical.requiresFirmMattress,
+        coverageQuality: getCoverageForCommune(day.location)?.quality,
+        coverageMbps: getCoverageForCommune(day.location)?.estimatedMbps,
+      })
+    : null;
 
   const checkIn = day.date;
   const checkOutDate = new Date(day.date);
@@ -49,9 +83,11 @@ export function LodgingPanel({ day, selectedId, onSelect }: LodgingPanelProps) {
       </p>
 
       <LodgingCard
-        option={day.lodging}
-        isSelected={selectedId === day.lodging.id}
-        onSelect={() => onSelect(day.lodging!.id)}
+        option={lodging}
+        isSelected={selectedId === lodging.id}
+        onSelect={() => onSelect(lodging.id)}
+        workation={workation}
+        workNight={workNight}
       />
 
       <div className="space-y-2">
@@ -82,14 +118,54 @@ export function LodgingPanel({ day, selectedId, onSelect }: LodgingPanelProps) {
   );
 }
 
+const CONFORMITY_BADGE: Record<ConformityStatus, string> = {
+  conforme: "badge-verified",
+  "à confirmer": "badge-estimated",
+  "non conforme": "badge-danger",
+};
+
+function WorkationConformity({
+  assessment,
+  workNight,
+}: {
+  assessment: WorkationAssessment;
+  workNight: boolean;
+}) {
+  return (
+    <div
+      className="space-y-2 p-3 rounded-lg"
+      style={{ background: "var(--bg-surface)" }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+          Conformité télétravail{workNight ? " (nuit travaillée)" : ""}
+        </span>
+        <span className={CONFORMITY_BADGE[assessment.overall]}>{assessment.overall}</span>
+      </div>
+      <ul className="space-y-1">
+        {assessment.criteria.map((c) => (
+          <li key={c.key} className="flex items-start gap-2 text-xs">
+            <span className={`${CONFORMITY_BADGE[c.status]} shrink-0`}>{c.label}</span>
+            <span style={{ color: "var(--text-secondary)" }}>{c.detail}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function LodgingCard({
   option,
   isSelected,
   onSelect,
+  workation,
+  workNight,
 }: {
   option: LodgingOption;
   isSelected: boolean;
   onSelect: () => void;
+  workation?: WorkationAssessment | null;
+  workNight?: boolean;
 }) {
   return (
     <article
@@ -167,6 +243,8 @@ function LodgingCard({
         {option.amenities.desk && <AmenityBadge label="Bureau" />}
         {option.amenities.pool && <AmenityBadge label="Piscine" />}
       </div>
+
+      {workation && <WorkationConformity assessment={workation} workNight={workNight ?? false} />}
 
       {option.toConfirm.length > 0 && (
         <div className="space-y-1">
