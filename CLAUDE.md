@@ -15,6 +15,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M7 | **Génération IA** (API Anthropic `claude-sonnet-4-6`, forced tool use → JSON validé Zod, mock-first) | ✅ |
 | M8a | **Budget & dépenses** (ventilation par poste, découpage entre voyageurs, règlements minimaux) | ✅ |
 | M8b | **Listes de bagages** bébé-aware (durée/saison, quantités échelonnées, checklist persistante) | ✅ |
+| M8c | **Import des réservations** (extraction mock-first/IA, agrégation dans l'itinéraire) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -101,6 +102,16 @@ conditionnelles (bébé < 36 mois, été/hiver, workation, Tesla). Clés d'artic
 stables pour mémoriser le cochage. UI `/bagages` (`PackingList`) : config
 durée/mois (saison dérivée), checklist groupée par catégorie avec progression,
 état persisté en IndexedDB (Dexie v4). *Prochaine étape : import des réservations (M8c).*
+
+**Import des réservations (M8c)** : extraction d'une confirmation collée vers
+une réservation structurée. **Mock-first** : parseur heuristique déterministe
+(`reservation-parse.ts` — type, dates FR/ISO, n° de confirmation, prestataire,
+lieu) ; en mode LIVE, Claude (`claude-sonnet-4-6`) en forced tool use validé Zod,
+repli sur l'heuristique. API `/api/agents/reservation`, persistance Dexie v5. UI
+`/reservations` (`ReservationsManager`) : coller → brouillon **éditable** → ajout ;
+liste chronologique agrégée. **Agrégation dans l'itinéraire** : les réservations
+couvrant une date apparaissent dans la journée correspondante du carnet
+(`ReservationsForDay`). *Prochaine étape : collaboration, hors-ligne, calendrier (M9).*
 
 ## Commandes essentielles
 

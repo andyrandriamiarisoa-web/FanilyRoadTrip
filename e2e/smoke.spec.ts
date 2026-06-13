@@ -316,3 +316,26 @@ test("bagages — liste bébé/saison générée, cochage persistant", async ({ 
     .locator("xpath=ancestor::label//input[@type='checkbox']")
   await expect(checkboxAfter).toBeChecked()
 })
+
+// ---------------------------------------------------------------------------
+// Import des réservations (M8)
+// ---------------------------------------------------------------------------
+
+test("réservations — extraction depuis un texte collé et agrégation", async ({ page }) => {
+  await page.goto("/reservations")
+  await expect(page.getByRole("heading", { name: "Réservations", exact: true })).toBeVisible()
+
+  // L'exemple pré-rempli est extrait (mode mock déterministe).
+  await page.getByRole("button", { name: /extraire la réservation/i }).click()
+  await expect(page.getByText(/réservation extraite/i)).toBeVisible({ timeout: 10_000 })
+
+  // Le brouillon a bien identifié l'hébergement et la date.
+  await expect(page.getByLabel("Intitulé")).toHaveValue(/Chapeau Rouge/i)
+  await expect(page.getByLabel("Début")).toHaveValue("2026-08-03")
+
+  // Ajout à l'itinéraire → apparaît dans la liste agrégée, persiste au rechargement.
+  await page.getByRole("button", { name: /ajouter à l'itinéraire/i }).click()
+  await expect(page.getByRole("heading", { name: /itinéraire des réservations/i })).toBeVisible()
+  await page.reload()
+  await expect(page.getByText(/Chapeau Rouge/i).first()).toBeVisible({ timeout: 10_000 })
+})

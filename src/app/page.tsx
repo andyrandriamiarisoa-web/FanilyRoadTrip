@@ -69,6 +69,13 @@ export default function HomePage() {
           Bagages
         </Link>
         <Link
+          href="/reservations"
+          className="text-sm font-medium underline underline-offset-4"
+          style={{ color: "var(--accent-vine-light)" }}
+        >
+          Réservations
+        </Link>
+        <Link
           href="/parametres"
           className="text-sm font-medium underline underline-offset-4"
           style={{ color: "var(--text-secondary)" }}

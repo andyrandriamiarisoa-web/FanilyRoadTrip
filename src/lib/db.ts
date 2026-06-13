@@ -9,6 +9,7 @@ import {
   type ProfilePatch,
 } from "@/lib/profile/profile";
 import type { Expense, ExpenseCategory } from "@/lib/budget/budget";
+import type { Reservation } from "@/lib/reservations/reservation-types";
 
 /** Identifiant du profil foyer actif (un seul foyer pour l'instant). */
 export const ACTIVE_PROFILE_ID = "famille-default";
@@ -71,6 +72,7 @@ export class OdysseeDatabase extends Dexie {
   expenses!: EntityTable<ExpenseRow, "id">;
   budgetSettings!: EntityTable<BudgetSettingsRow, "id">;
   packingState!: EntityTable<PackingStateRow, "id">;
+  reservations!: EntityTable<Reservation, "id">;
 
   constructor() {
     super("odyssee-db");
@@ -91,6 +93,10 @@ export class OdysseeDatabase extends Dexie {
     // v4 : état de la liste de bagages (M8).
     this.version(4).stores({
       packingState: "id",
+    });
+    // v5 : réservations importées (M8).
+    this.version(5).stores({
+      reservations: "id, startDate",
     });
   }
 }
@@ -288,4 +294,24 @@ export async function loadPackingState(): Promise<PackingState> {
 export async function savePackingState(state: PackingState): Promise<void> {
   const db = getDb();
   await db.packingState.put({ id: PACKING_STATE_ID, ...state });
+}
+
+// ---------------------------------------------------------------------------
+// Réservations importées (M8)
+// ---------------------------------------------------------------------------
+
+/** Réservations triées par date de début. */
+export async function listReservations(): Promise<Reservation[]> {
+  const db = getDb();
+  return db.reservations.orderBy("startDate").toArray();
+}
+
+export async function addReservation(reservation: Reservation): Promise<void> {
+  const db = getDb();
+  await db.reservations.put(reservation);
+}
+
+export async function deleteReservation(id: string): Promise<void> {
+  const db = getDb();
+  await db.reservations.delete(id);
 }
