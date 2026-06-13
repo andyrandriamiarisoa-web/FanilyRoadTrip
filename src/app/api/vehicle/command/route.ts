@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getVehicleProviderForRequest } from "@/lib/vehicle/provider"
-import { VehicleNotFoundError } from "@/lib/vehicle/types"
+import { VehicleCommandSchema, VehicleNotFoundError } from "@/lib/vehicle/types"
 import {
   TESLA_SESSION_COOKIE,
   TESLA_SESSION_MAX_AGE_SECONDS,
@@ -9,18 +9,25 @@ import {
 } from "@/lib/vehicle/tesla-session"
 
 /**
- * Lecture ponctuelle de l'état de charge d'un véhicule (jamais de polling).
- * `?vehicleId=...` requis. Côté serveur uniquement.
- * En mode live non connecté → `needsAuth:true` pour déclencher l'OAuth côté UI.
+ * Envoie une commande à un véhicule. Corps : `{ vehicleId, command }`.
+ * Côté serveur uniquement ; le résultat est toujours explicite (succès ou
+ * raison réelle de l'échec, y compris l'exigence de commandes signées).
  */
 export const runtime = "nodejs"
 
-export async function GET(req: NextRequest) {
-  const url = new URL(req.url)
-  const vehicleId = url.searchParams.get("vehicleId")
-  if (!vehicleId) {
+export async function POST(req: NextRequest) {
+  let payload: unknown
+  try {
+    payload = await req.json()
+  } catch {
+    return NextResponse.json({ ok: false, error: "Corps JSON invalide." }, { status: 400 })
+  }
+
+  const body = payload as { vehicleId?: unknown; command?: unknown }
+  const parsed = VehicleCommandSchema.safeParse(body?.command)
+  if (typeof body?.vehicleId !== "string" || !body.vehicleId || !parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "Paramètre vehicleId requis" },
+      { ok: false, error: "Requête invalide : vehicleId et command sont requis." },
       { status: 400 },
     )
   }
@@ -32,8 +39,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const state = await resolved.provider.getVehicleState(vehicleId)
-    const res = NextResponse.json({ ok: true, mode: resolved.provider.mode, state })
+    const result = await resolved.provider.sendCommand(body.vehicleId, parsed.data)
+    const res = NextResponse.json({ ok: result.ok, mode: resolved.provider.mode, result })
     if (resolved.refreshedSession) {
       const enc = encryptSession(resolved.refreshedSession)
       if (enc) {
@@ -46,7 +53,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: err.message }, { status: 404 })
     }
     const message = err instanceof Error ? err.message : "Erreur véhicule"
-    console.error("[vehicle/state]", message)
+    console.error("[vehicle/command]", message)
     return NextResponse.json({ ok: false, error: message }, { status: 502 })
   }
 }

@@ -12,7 +12,13 @@
  * relance sur erreur facturable n'est introduit ici.
  */
 
-import type { Vehicle, VehicleProvider, VehicleState } from "./types"
+import type {
+  CommandResult,
+  Vehicle,
+  VehicleCommand,
+  VehicleProvider,
+  VehicleState,
+} from "./types"
 
 interface CacheEntry<T> {
   value: T
@@ -61,5 +67,13 @@ export class CachingVehicleProvider implements VehicleProvider {
     return this.cached(`${this.mode}:state:${vehicleId}`, () =>
       this.delegate.getVehicleState(vehicleId),
     )
+  }
+
+  async sendCommand(vehicleId: string, command: VehicleCommand): Promise<CommandResult> {
+    // Une commande n'est jamais mise en cache. En cas de succès, l'état change :
+    // on invalide l'entrée d'état pour ne pas servir une lecture périmée.
+    const result = await this.delegate.sendCommand(vehicleId, command)
+    if (result.ok) this.store.delete(`${this.mode}:state:${vehicleId}`)
+    return result
   }
 }

@@ -9,7 +9,9 @@
 
 import {
   VehicleNotFoundError,
+  type CommandResult,
   type Vehicle,
+  type VehicleCommand,
   type VehicleProvider,
   type VehicleState,
 } from "./types"
@@ -59,4 +61,25 @@ export class MockVehicleProvider implements VehicleProvider {
       source: "mock",
     }
   }
+
+  async sendCommand(vehicleId: string, command: VehicleCommand): Promise<CommandResult> {
+    if (!MOCK_VEHICLES.some((v) => v.id === vehicleId)) {
+      throw new VehicleNotFoundError(vehicleId)
+    }
+    // Déterministe : la démo confirme toujours, sans état mutable.
+    return {
+      ok: true,
+      message: `${MOCK_COMMAND_LABEL[command.type]} (simulation).`,
+      requiresSignedCommand: false,
+    }
+  }
+}
+
+const MOCK_COMMAND_LABEL: Record<VehicleCommand["type"], string> = {
+  wake: "Véhicule réveillé",
+  start_climate: "Climatisation démarrée",
+  stop_climate: "Climatisation arrêtée",
+  start_charging: "Charge démarrée",
+  stop_charging: "Charge arrêtée",
+  set_charge_limit: "Limite de charge mise à jour",
 }

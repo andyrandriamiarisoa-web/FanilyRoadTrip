@@ -15,7 +15,9 @@
 
 import {
   VehicleNotFoundError,
+  type CommandResult,
   type Vehicle,
+  type VehicleCommand,
   type VehicleConnectivity,
   type VehicleProvider,
   type VehicleState,
@@ -126,6 +128,30 @@ export class TeslaVehicleProvider implements VehicleProvider {
     }
   }
 
+  async sendCommand(vehicleId: string, command: VehicleCommand): Promise<CommandResult> {
+    // Le réveil a son propre endpoint ; les autres passent par /command/{name}.
+    if (command.type === "wake") {
+      const res = await this.doFetch(
+        `${this.cfg.apiBase}/api/1/vehicles/${vehicleId}/wake_up`,
+        { method: "POST", headers: this.headers() },
+      )
+      if (res.status === 404) throw new VehicleNotFoundError(vehicleId)
+      return interpretCommandResponse(res, "Véhicule réveillé.")
+    }
+
+    const { name, body } = mapCommand(command)
+    const res = await this.doFetch(
+      `${this.cfg.apiBase}/api/1/vehicles/${vehicleId}/command/${name}`,
+      {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      },
+    )
+    if (res.status === 404) throw new VehicleNotFoundError(vehicleId)
+    return interpretCommandResponse(res, COMMAND_OK_LABEL[command.type])
+  }
+
   private async connectivity(vehicleId: string): Promise<VehicleConnectivity> {
     const res = await this.doFetch(
       `${this.cfg.apiBase}/api/1/vehicles/${vehicleId}`,
@@ -165,4 +191,86 @@ function modelFromVin(vin: string): string {
 
 function usableKwhFromVin(vin: string): number {
   return modelFromVin(vin) === "Tesla Model S" ? 95 : 75
+}
+
+// ---------------------------------------------------------------------------
+// Commandes
+// ---------------------------------------------------------------------------
+
+const COMMAND_OK_LABEL: Record<VehicleCommand["type"], string> = {
+  wake: "Véhicule réveillé.",
+  start_climate: "Climatisation démarrée.",
+  stop_climate: "Climatisation arrêtée.",
+  start_charging: "Charge démarrée.",
+  stop_charging: "Charge arrêtée.",
+  set_charge_limit: "Limite de charge mise à jour.",
+}
+
+/** Traduit une commande métier vers l'endpoint Fleet API legacy + son corps. */
+function mapCommand(command: VehicleCommand): { name: string; body: Record<string, unknown> } {
+  switch (command.type) {
+    case "start_climate":
+      return { name: "auto_conditioning_start", body: {} }
+    case "stop_climate":
+      return { name: "auto_conditioning_stop", body: {} }
+    case "start_charging":
+      return { name: "charge_start", body: {} }
+    case "stop_charging":
+      return { name: "charge_stop", body: {} }
+    case "set_charge_limit":
+      return { name: "set_charge_limit", body: { percent: command.percent ?? 80 } }
+    case "wake":
+      // Géré en amont (endpoint dédié) ; présent pour l'exhaustivité du switch.
+      return { name: "wake_up", body: {} }
+  }
+}
+
+interface TeslaCommandResponse {
+  response?: { result?: boolean; reason?: string }
+  error?: string
+  error_description?: string
+}
+
+/**
+ * Interprète la réponse d'une commande de façon **honnête** :
+ *  - 200 + result=true  → succès,
+ *  - 200 + result=false → on remonte la `reason` réelle,
+ *  - 403 / signature    → on signale l'exigence de commandes signées
+ *    (Vehicle Command Protocol des véhicules 2021+), jamais masquée.
+ */
+async function interpretCommandResponse(
+  res: Response,
+  okLabel: string,
+): Promise<CommandResult> {
+  const json = (await res.json().catch(() => ({}))) as TeslaCommandResponse
+  const reason = json.response?.reason || json.error_description || json.error || ""
+
+  if (res.ok && json.response?.result === true) {
+    return { ok: true, message: okLabel, requiresSignedCommand: false }
+  }
+
+  // Détection de l'exigence de signature (véhicules récents / clé virtuelle).
+  const haystack = `${res.status} ${reason}`.toLowerCase()
+  const requiresSignedCommand =
+    res.status === 403 ||
+    haystack.includes("signed") ||
+    haystack.includes("vehicle_command") ||
+    haystack.includes("unsigned") ||
+    haystack.includes("virtual key")
+
+  if (requiresSignedCommand) {
+    return {
+      ok: false,
+      message:
+        "Ce véhicule exige des commandes signées (clé virtuelle / Vehicle Command Protocol). " +
+        "Cette app envoie des commandes legacy, compatibles avec les véhicules d'avant 2021.",
+      requiresSignedCommand: true,
+    }
+  }
+
+  return {
+    ok: false,
+    message: reason || `Commande refusée (HTTP ${res.status}).`,
+    requiresSignedCommand: false,
+  }
 }

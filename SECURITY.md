@@ -9,34 +9,37 @@ le traitement des secrets.
 | Secret | Stockage | Exposition client |
 |--------|----------|-------------------|
 | `ANTHROPIC_API_KEY` | Variable d'environnement serveur (Vercel / GitHub Secrets) | **Jamais** — utilisé uniquement dans les routes `/api/agents/*` |
-| `TESLA_ACCESS_TOKEN` | Variable d'environnement serveur | **Jamais** — utilisé uniquement dans les routes `/api/vehicle/*` |
+| `TESLA_CLIENT_ID` / `TESLA_CLIENT_SECRET` | Variable d'environnement serveur | **Jamais** — flux OAuth dans `/api/tesla/*` |
+| `TESLA_TOKEN_SECRET` | Variable d'environnement serveur | **Jamais** — clé de chiffrement AES-256-GCM des jetons en cookie |
+| Jetons utilisateur Tesla (`access`/`refresh`) | **Cookie `httpOnly` chiffré** (AES-256-GCM) | **Jamais** en clair — déchiffrés côté serveur uniquement |
+| `TESLA_ACCESS_TOKEN` (override dev) | Variable d'environnement serveur | **Jamais** — utilisé uniquement dans les routes `/api/vehicle/*` |
 | `TESLA_PUBLIC_KEY_PEM` | Variable d'environnement serveur | Servie publiquement à dessein sous `/.well-known/...` (clé **publique**) |
 | `OPENCHARGEMAP_API_KEY` | Variable d'environnement serveur | **Jamais** |
 
-- **Aucun token n'est stocké au repos par l'application.** Les jetons sont lus
-  depuis l'environnement au moment de l'appel, côté serveur uniquement. Il n'y a
-  donc pas de token-at-rest à chiffrer dans l'architecture actuelle.
-- La fabrique `getVehicleProvider()` / les orchestrateurs IA ne sont appelés que
+- La fabrique `getVehicleProvider*()` / les orchestrateurs IA ne sont appelés que
   dans des **route handlers serverless** : les clés ne transitent jamais par le
   bundle client.
 - **Lecture Fleet API mise en cache (TTL)** pour limiter le coût et la surface
   d'appel ; aucun réveil de véhicule, aucune relance sur erreur facturable.
 
-### Flux OAuth Tesla complet (mode LIVE réel)
+### Flux OAuth Tesla (mode LIVE réel) — implémenté
 
-L'implémentation actuelle lit un `TESLA_ACCESS_TOKEN` fourni par l'environnement
-(approche mock-first). Pour un déploiement avec le **flux OAuth complet**
-(`authorization_code` + `refresh_token` à usage unique, ~3 mois) :
+Le flux `authorization_code` complet est en place (`src/lib/vehicle/tesla-oauth.ts`,
+`tesla-session.ts`, routes `/api/tesla/*`). Posture :
 
-1. Stocker `access_token` / `refresh_token` **chiffrés au repos** côté serveur
-   (KMS / secret manager), jamais en clair.
-2. Implémenter la **rotation** : à chaque rafraîchissement, le `refresh_token`
-   précédent est invalidé — persister le nouveau de façon atomique.
-3. Ne jamais logguer les jetons ; ne pas activer le debug verbeux des Actions
-   sur des workflows ayant accès aux secrets.
+1. **Jetons chiffrés au repos** : `access_token` + `refresh_token` + base
+   régionale sont sérialisés puis chiffrés en **AES-256-GCM** (clé dérivée de
+   `TESLA_TOKEN_SECRET`) dans un cookie `httpOnly` + `Secure` + `SameSite=Lax`.
+   Un cookie volé sans le secret serveur est inexploitable.
+2. **Rotation du refresh token** : à chaque rafraîchissement, le nouveau
+   `refresh_token` renvoyé par Tesla remplace l'ancien dans le cookie réécrit.
+3. **`state` anti-CSRF** sur le flux d'autorisation (cookie httpOnly court,
+   comparé au retour).
+4. Les jetons ne sont **jamais journalisés** ; seules les erreurs (statut,
+   message) le sont.
 
-Ces étapes sont documentées comme prérequis de déploiement ; elles n'ont pas
-d'objet tant que l'app fonctionne en mode MOCK ou avec un token d'environnement.
+> Le mode `mock` (défaut) reste sans aucun secret ni token. Voir `docs/TESLA.md`
+> pour la mise en service LIVE.
 
 ## En-têtes HTTP (`next.config.ts`)
 

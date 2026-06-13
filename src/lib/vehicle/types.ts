@@ -53,6 +53,41 @@ export const VehicleStateSchema = z.object({
 export type VehicleState = z.infer<typeof VehicleStateSchema>
 
 // ---------------------------------------------------------------------------
+// Commandes véhicule (envoi)
+// ---------------------------------------------------------------------------
+
+/**
+ * Commandes supportées, volontairement restreintes à un sous-ensemble utile
+ * pour un carnet de route (confort + charge). Aucune commande de conduite.
+ */
+export const VehicleCommandSchema = z.object({
+  type: z.enum([
+    "wake", // réveille le véhicule (préalable fréquent aux autres commandes)
+    "start_climate", // préconditionnement / climatisation ON
+    "stop_climate",
+    "start_charging",
+    "stop_charging",
+    "set_charge_limit",
+  ]),
+  /** Pour `set_charge_limit` : pourcentage cible (50–100). */
+  percent: z.number().int().min(50).max(100).optional(),
+})
+export type VehicleCommand = z.infer<typeof VehicleCommandSchema>
+
+export const CommandResultSchema = z.object({
+  ok: z.boolean(),
+  /** Message honnête : confirmation, ou raison réelle de l'échec. */
+  message: z.string(),
+  /**
+   * `true` si l'échec vient de l'exigence de **commandes signées** (Vehicle
+   * Command Protocol des véhicules 2021+). Affiché honnêtement à l'utilisateur
+   * plutôt que masqué (anti-pattern « faux vérifié »).
+   */
+  requiresSignedCommand: z.boolean(),
+})
+export type CommandResult = z.infer<typeof CommandResultSchema>
+
+// ---------------------------------------------------------------------------
 // Contrat du provider
 // ---------------------------------------------------------------------------
 
@@ -66,6 +101,11 @@ export interface VehicleProvider {
    * avant toute requête de données (bonne pratique Fleet API).
    */
   getVehicleState(vehicleId: string): Promise<VehicleState>
+  /**
+   * Envoie une commande au véhicule. Le résultat est toujours explicite
+   * (succès ou raison d'échec), jamais silencieux.
+   */
+  sendCommand(vehicleId: string, command: VehicleCommand): Promise<CommandResult>
 }
 
 export class VehicleNotFoundError extends Error {
