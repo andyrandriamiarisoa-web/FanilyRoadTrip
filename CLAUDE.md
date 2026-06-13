@@ -16,6 +16,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | M8a | **Budget & dépenses** (ventilation par poste, découpage entre voyageurs, règlements minimaux) | ✅ |
 | M8b | **Listes de bagages** bébé-aware (durée/saison, quantités échelonnées, checklist persistante) | ✅ |
 | M8c | **Import des réservations** (extraction mock-first/IA, agrégation dans l'itinéraire) | ✅ |
+| M9a | **Export calendrier** (.ics RFC 5545 — événements fixes, nuitées, réservations) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -112,6 +113,13 @@ repli sur l'heuristique. API `/api/agents/reservation`, persistance Dexie v5. UI
 liste chronologique agrégée. **Agrégation dans l'itinéraire** : les réservations
 couvrant une date apparaissent dans la journée correspondante du carnet
 (`ReservationsForDay`). *Prochaine étape : collaboration, hors-ligne, calendrier (M9).*
+
+**Export calendrier (M9a)** : générateur iCalendar pur `src/lib/calendar/ics.ts`
+(RFC 5545 — échappement, repli de ligne à 75 octets, CRLF, DTEND exclusif pour
+les journées entières). `tripPlanToEvents` (événements fixes horaires + nuitées)
+et `reservationsToEvents` (périodes). Bouton « Calendrier .ics » dans le carnet
+télécharge un fichier importable dans n'importe quel agenda. *Prochaine étape :
+collaboration (vote d'activités) et robustesse hors-ligne (M9b/M9c).*
 
 ## Commandes essentielles
 
