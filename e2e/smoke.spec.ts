@@ -26,8 +26,8 @@ test("plan page shows generate button and trip summary", async ({ page }) => {
   await page.goto("/plan")
   await expect(page).toHaveTitle(/Générer/)
   await expect(page.getByRole("button", { name: /générer/i })).toBeVisible()
-  // Shows reference trip info
-  await expect(page.getByText(/Fresnes/i)).toBeVisible()
+  // Shows reference trip info (appears in both the intro and the summary card)
+  await expect(page.getByText(/Fresnes/i).first()).toBeVisible()
 })
 
 test("plan generation flow — mock mode returns a trip plan", async ({ page }) => {
