@@ -228,3 +228,24 @@ test("hébergement — conformité workation affichée et classée (non exclue)"
   await expect(page.getByText(/Conformité télétravail/i).first()).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/Connectivité/i).first()).toBeVisible()
 })
+
+// ---------------------------------------------------------------------------
+// Génération d'itinéraire par IA (M7)
+// ---------------------------------------------------------------------------
+
+test("génération IA — propose un itinéraire structuré et éditable", async ({ page }) => {
+  await page.goto("/plan")
+
+  await expect(page.getByRole("heading", { name: /générer par ia/i })).toBeVisible()
+  await page.getByRole("button", { name: /proposer un itinéraire/i }).click()
+
+  // Un brouillon structuré apparaît (mode mock en CI) avec un jour daté.
+  await expect(page.getByText(/Brouillon —/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/Démo \(mock\)/i)).toBeVisible()
+
+  // Le brouillon est éditable : on modifie le titre d'une journée.
+  const firstTitle = page.getByLabel(/Titre du 2026-08-03/i)
+  await expect(firstTitle).toBeVisible()
+  await firstTitle.fill("Ma journée personnalisée")
+  await expect(firstTitle).toHaveValue("Ma journée personnalisée")
+})
