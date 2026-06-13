@@ -355,3 +355,27 @@ test("export calendrier .ics depuis le carnet", async ({ page }) => {
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe("odyssee-voyage.ics")
 })
+
+// ---------------------------------------------------------------------------
+// Collaboration — vote des activités (M9)
+// ---------------------------------------------------------------------------
+
+test("collaboration — voter pour une activité et voir le décompte", async ({ page }) => {
+  await page.goto("/collaboration")
+  await expect(page.getByRole("heading", { name: /vote des activités/i })).toBeVisible()
+
+  // Sans prénom, le vote est désactivé ; on saisit un prénom.
+  await page.getByLabel(/votre prénom/i).fill("Andy")
+
+  // Approuve la première activité.
+  const firstVote = page.getByRole("button", { name: /^Voter$/ }).first()
+  await firstVote.click()
+
+  // Le décompte passe à 1 vote avec le votant.
+  await expect(page.getByText(/1 vote · Andy/i).first()).toBeVisible({ timeout: 10_000 })
+
+  // L'approbation persiste après rechargement.
+  await page.reload()
+  await page.getByLabel(/votre prénom/i).fill("Andy")
+  await expect(page.getByText(/1 vote · Andy/i).first()).toBeVisible({ timeout: 10_000 })
+})
