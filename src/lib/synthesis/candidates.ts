@@ -1,21 +1,34 @@
 import type { SynthesisRequest, TripCandidate, Ambiance, Opportunity } from "./types";
 import type { SynthesisAdapters } from "./adapters";
-import { layout } from "./solver";
 import { opportunityWeight, scoreCandidate } from "./scoring";
+import { selectOptimal, layoutAligned } from "./optimizer";
 
 const AMBIANCE_LABELS: Record<Ambiance, string> = {
   reposant: "Le Reposant", sociable: "Le Sociable", decouvreur: "Le Découvreur", theme: "Le Thématique",
 };
 
-// Classe (sans exclure) puis retient un sous-ensemble selon l'ambiance.
-// Le reste des opportunités demeure consultable ailleurs dans l'app (anti-pattern #1).
+/** Part du temps de visite disponible allouée selon l'ambiance (le Reposant en fait moins). */
+const AMBIANCE_BUDGET_RATIO: Record<Ambiance, number> = {
+  reposant: 0.4, sociable: 0.7, decouvreur: 0.75, theme: 0.7,
+};
+
+/**
+ * Sélection **optimale** (S7) par ambiance : personnes forcées (ancres souples),
+ * puis sac à dos sur le reste sous un budget de temps dépendant de l'ambiance.
+ * On **classe sans exclure** (le reste du pool reste consultable ailleurs).
+ */
 function pickForAmbiance(req: SynthesisRequest, ambiance: Ambiance): Opportunity[] {
-  const pool = [...(req.opportunities ?? []), ...(req.people ?? [])];
-  const ranked = pool
-    .map(o => ({ o, w: opportunityWeight(o, ambiance, req.themeCategory) }))
-    .sort((a, b) => b.w - a.w);
-  const maxVisits = Math.max(3, Math.round(req.window.maxNights * (ambiance === "reposant" ? 0.6 : 1.2)));
-  return ranked.slice(0, maxVisits).map(r => r.o);
+  const nonPeople = req.opportunities ?? [];
+  const people = req.people ?? [];
+  const nonPeopleCost = nonPeople.reduce((s, o) => s + o.durationMin, 0);
+  const peopleCost = people.reduce((s, o) => s + o.durationMin, 0);
+  const budgetMin = peopleCost + Math.round(nonPeopleCost * AMBIANCE_BUDGET_RATIO[ambiance]);
+  return selectOptimal({
+    pool: nonPeople,
+    people,
+    weightOf: (o) => opportunityWeight(o, ambiance, req.themeCategory),
+    budgetMin,
+  });
 }
 
 export async function generateCandidates(req: SynthesisRequest, adapters: SynthesisAdapters): Promise<TripCandidate[]> {
@@ -29,7 +42,7 @@ export async function generateCandidates(req: SynthesisRequest, adapters: Synthe
   const out: TripCandidate[] = [];
   for (const ambiance of ambiances) {
     const selected = pickForAmbiance(req, ambiance);
-    const cand = await layout(
+    const cand = await layoutAligned(
       { anchor, selected, window: req.window, constraints: req.constraints, ambiance, label: AMBIANCE_LABELS[ambiance], pool },
       adapters,
     );

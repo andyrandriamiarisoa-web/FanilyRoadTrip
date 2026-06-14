@@ -34,6 +34,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | S4 | **Contraintes comme découverte** (`curateSlot` — pauses/charge/canicule/jour travaillé enrichis, sans exclure) | ✅ |
 | S5 | **Graphe social géolocalisé** (personnes-ancres souples, IndexedDB local, ambiance Sociable) | ✅ |
 | S6 | **Récit IA** (barde, pas inventeur — prompt + repli gabarit gratuit, aucun fait inventé) | ✅ |
+| S7 | **Durcissement du solveur** (sac à dos 0/1 exact + layout aligné sur la date d'ancre — pur TS, déployable) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -241,8 +242,19 @@ opportunités classées sans exclure. **S5** graphe social local
 Sociable). **S6** récit IA *barde, pas inventeur* (`narrative.ts` — prompt +
 repli gabarit gratuit, n'expose que les faits du JSON validé). API
 `/api/synthesis` ; UI `/composer` (+ `PeopleEditor`). Mock-first, validé Zod
-(`schemas.ts`), fixtures `src/data/synthesis-fixtures.ts`. *Durcissement OR-Tools
-= lot S7 ultérieur (hors périmètre).*
+(`schemas.ts`), fixtures `src/data/synthesis-fixtures.ts`.
+
+**Durcissement du solveur (S7)** : `src/lib/synthesis/optimizer.ts` (pur,
+déterministe, testé). (1) **Sélection optimale** — sac à dos 0/1 **exact**
+(`knapsack`, DP) maximisant le poids d'ambiance sous un budget de temps de
+visite ; personnes **forcées** (ancres souples S5). (2) **Alignement exact de
+l'ancre** — `layoutAligned` épingle l'ancre sur sa date réelle (calendrier
+d'abord) et ne fait rouler le foyer **que les jours non travaillés**.
+`generateCandidates` utilise désormais `selectOptimal` + `layoutAligned` ; le
+glouton V1 (`solver.ts`) reste pour repli/tests. **Note OR-Tools** : non importé —
+distribué en binaires natifs (pas d'npm maintenu), il ne se construit pas en CI
+ni sur le serverless ; l'optimisation est donc faite en TS pur (knapsack DP),
+exacte sur ce modèle. Un vrai backend ILP (glpk-wasm) resterait possible.
 
 ## Commandes essentielles
 
