@@ -52,7 +52,7 @@ export interface HotelOffer {
   readAt: string
 }
 
-export type AvailabilityMode = "mock" | "amadeus"
+export type AvailabilityMode = "mock" | "amadeus" | "liteapi"
 
 export interface AvailabilityResult {
   offers: HotelOffer[]

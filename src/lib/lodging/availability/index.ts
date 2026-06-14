@@ -9,6 +9,7 @@
 import type { AvailabilityRequest, AvailabilityResult, LodgingAvailabilityProvider } from "./types"
 import { MockLodgingAvailabilityProvider } from "./mock"
 import { AmadeusLodgingAvailabilityProvider } from "./amadeus"
+import { LiteApiLodgingAvailabilityProvider } from "./liteapi"
 import { CachingLodgingAvailabilityProvider } from "./cache"
 
 /** TTL du cache de disponibilité (secondes) — défaut 10 min. */
@@ -23,10 +24,18 @@ export function getLodgingAvailabilityProvider(): LodgingAvailabilityProvider {
   const isLive = process.env.NEXT_PUBLIC_APP_MODE === "live"
   const clientId = process.env.AMADEUS_CLIENT_ID
   const clientSecret = process.env.AMADEUS_CLIENT_SECRET
+  const liteApiKey = process.env.LITEAPI_KEY
 
+  // Primaire : Amadeus. Alternative : LiteAPI. Tous deux derrière le cache TTL.
   if (isLive && clientId && clientSecret) {
     return new CachingLodgingAvailabilityProvider(
       new AmadeusLodgingAvailabilityProvider({ clientId, clientSecret }),
+      { ttlMs: cacheTtlMs() },
+    )
+  }
+  if (isLive && liteApiKey) {
+    return new CachingLodgingAvailabilityProvider(
+      new LiteApiLodgingAvailabilityProvider({ apiKey: liteApiKey }),
       { ttlMs: cacheTtlMs() },
     )
   }

@@ -37,3 +37,36 @@ export const SynthesisRequestSchema = z.object({
   }),
   themeCategory: Category.optional(),
 });
+
+// ── TripCandidate (frontière pour la narration IA, S6) ──────────────────────
+
+const PlannedStop = z.object({
+  opportunityId: z.string().optional(),
+  title: z.string(),
+  kind: z.enum(["drive", "visit", "baby-pause", "charge", "anchor", "night", "work", "canicule-block"]),
+  start: z.string(),
+  end: z.string(),
+  location: LatLng.optional(),
+  source: z.string().optional(),
+  sourceStatus: SourceStatus.optional(),
+  note: z.string().optional(),
+  curated: z.array(z.object({ id: z.string(), title: z.string(), source: z.string(), sourceStatus: SourceStatus })).optional(),
+});
+
+export const TripCandidateSchema = z.object({
+  ambiance: z.enum(["reposant", "sociable", "decouvreur", "theme"]),
+  label: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  days: z.array(z.object({
+    date: z.string(),
+    isWorkday: z.boolean(),
+    stops: z.array(PlannedStop),
+    driveMinutes: z.number(),
+  })),
+  includedOpportunityIds: z.array(z.string()),
+  totalDriveMinutes: z.number(),
+  score: z.number(),
+  conflicts: z.array(z.string()),
+  caniculeExposureDays: z.number(),
+});

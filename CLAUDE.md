@@ -207,8 +207,10 @@ honnête si quota/panne) ; cache TTL (`CachingLodgingAvailabilityProvider`,
 gratuit. **Classer sans exclure** : `rankOffers` met les disponibles en tête
 (prix croissant) et **conserve les complets** (signalés). Source + fraîcheur
 (`readAt`) toujours affichées. API `/api/lodging/availability` ; UI
-`/hebergements` (`LodgingAvailabilitySearch`). Tests : mock déterministe, repli,
-cache, anti-pattern #1. *Reste : Airbnb hors périmètre (aucune API libre).*
+`/hebergements` (`LodgingAvailabilitySearch`). **Alternative LiteAPI**
+(`liteapi.ts`, rates temps réel, read-only, `LITEAPI_KEY`) activée si Amadeus
+absent ; mapper pur testé. Tests : mock déterministe, repli, cache, mapping
+LiteAPI, anti-pattern #1. *Reste : Airbnb hors périmètre (aucune API libre).*
 
 **Ménage & doc (R6)** : `.env.example` mis à jour (Amadeus, LiteAPI optionnel,
 TTL dispo) ; `TESLA_ACCESS_TOKEN` marqué **dev-only** (redondant avec l'OAuth —
@@ -240,7 +242,9 @@ créneaux de contrainte (pause bébé, charge, canicule, jour travaillé) en
 opportunités classées sans exclure. **S5** graphe social local
 (`people-store.ts` → Dexie v7 `people`, personnes-ancres souples, ambiance
 Sociable). **S6** récit IA *barde, pas inventeur* (`narrative.ts` — prompt +
-repli gabarit gratuit, n'expose que les faits du JSON validé). API
+repli gabarit gratuit, n'expose que les faits du JSON validé) ; route
+`/api/synthesis/narrative` (Claude `claude-sonnet-4-6` en live, repli gabarit
+sans clé) + bouton « Enrichir le récit (IA) » dans `/composer`. API
 `/api/synthesis` ; UI `/composer` (+ `PeopleEditor`). Mock-first, validé Zod
 (`schemas.ts`), fixtures `src/data/synthesis-fixtures.ts`.
 
@@ -254,7 +258,9 @@ d'abord) et ne fait rouler le foyer **que les jours non travaillés**.
 glouton V1 (`solver.ts`) reste pour repli/tests. **Note OR-Tools** : non importé —
 distribué en binaires natifs (pas d'npm maintenu), il ne se construit pas en CI
 ni sur le serverless ; l'optimisation est donc faite en TS pur (knapsack DP),
-exacte sur ce modèle. Un vrai backend ILP (glpk-wasm) resterait possible.
+exacte sur ce modèle. **Backend ILP optionnel** (`ilp.ts`, glpk.js / GLPK WASM,
+import dynamique serveur) activable par `SYNTHESIS_SOLVER=ilp` — testé à parité
+exacte avec le DP, repli DP si le WASM échoue.
 
 ## Commandes essentielles
 
@@ -303,6 +309,7 @@ AMADEUS_CLIENT_SECRET   # Dispo hôtels R5, serveur uniquement
 LITEAPI_KEY             # Dispo hôtels — alternative (optionnel)
 LODGING_AVAILABILITY_TTL_SECONDS  # TTL cache dispo hôtels (défaut 600)
 OPENAGENDA_PUBLIC_KEY   # Événements datés synthèse S3 (optionnel → mock)
+SYNTHESIS_SOLVER        # "ilp" → backend GLPK (glpk.js) ; sinon DP exact (défaut)
 TESLA_CLIENT_ID         # OAuth Fleet API (flux authorization_code) — voir docs/TESLA.md
 TESLA_CLIENT_SECRET     # OAuth Fleet API, serveur uniquement
 TESLA_REDIRECT_URI      # .../api/tesla/callback (enregistrée côté Tesla Developer)
