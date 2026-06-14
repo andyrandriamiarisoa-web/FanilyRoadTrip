@@ -107,7 +107,7 @@ test("theme toggle switches between dark and light", async ({ page }) => {
 // Navigation — all main routes respond 200
 // ---------------------------------------------------------------------------
 
-const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline"]
+const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline", "/lieux", "/hebergements"]
 
 for (const route of MAIN_ROUTES) {
   test(`route ${route} responds 200`, async ({ request }) => {
@@ -404,6 +404,63 @@ test("page hors-ligne — liste des fonctions disponibles", async ({ page }) => 
   await page.goto("/offline")
   await expect(page.getByText(/disponible hors-ligne/i)).toBeVisible()
   await expect(page.getByText(/Carnet de route/i).first()).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// Lieux & horaires sur données ouvertes (R3)
+// ---------------------------------------------------------------------------
+
+test("lieux — recherche de POI ouverts avec horaires et source", async ({ page }) => {
+  await page.goto("/lieux")
+  await expect(page.getByRole("heading", { name: /lieux & horaires/i })).toBeVisible()
+
+  // Sélectionne Lyon (couverte par le seed) et vérifie des résultats classés.
+  await page.getByLabel(/ville d'étape/i).selectOption("lyon")
+  await expect(page.getByText(/classés par proximité/i)).toBeVisible()
+  await expect(page.getByText(/Musée des Confluences/i)).toBeVisible({ timeout: 10_000 })
+  // La source est affichée (anti-pattern #3) et un horaire « Aujourd'hui ».
+  await expect(page.getByText(/Aujourd'hui/i).first()).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// Orchestration des jours de télétravail (R4)
+// ---------------------------------------------------------------------------
+
+test("télétravail — un jour travaillé affiche les deux pistes (coworking + famille)", async ({
+  page,
+}) => {
+  // Génère le plan puis ouvre une journée de télétravail (Lun–Jeu).
+  await page.goto("/plan")
+  await page.getByRole("button", { name: /générer le voyage/i }).click()
+  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
+
+  // Le premier jour « Télétravail » (Dijon, lundi) expose les deux pistes.
+  await page.getByRole("button", { name: /télétravail/i }).first().click()
+  await expect(page.getByText(/Andy : coworking/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/Famille : plan de visites/i)).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// Disponibilité hébergements (R5)
+// ---------------------------------------------------------------------------
+
+test("hébergements — recherche dispo mock, classée, source affichée, sans réservation", async ({
+  page,
+}) => {
+  await page.goto("/hebergements")
+  await expect(page.getByRole("heading", { name: /disponibilités hébergements/i })).toBeVisible()
+
+  // Recherche par défaut (Marseille 7–9/08/2026).
+  await page.getByRole("button", { name: /rechercher les disponibilités/i }).click()
+
+  // Des établissements apparaissent avec une source affichée (anti-pattern #3).
+  await expect(page.getByText(/source : mock/i)).toBeVisible({ timeout: 10_000 })
+  // Une offre concrète (carte résultat) est visible — un statut dispo/complet.
+  await expect(page.getByText(/^(Disponible|Complet)$/).first()).toBeVisible()
+
+  // Aucune action de réservation exposée (read-only strict).
+  await expect(page.getByRole("button", { name: /réserver|booking|payer/i })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: /réserver|booking/i })).toHaveCount(0)
 })
 
 // ---------------------------------------------------------------------------

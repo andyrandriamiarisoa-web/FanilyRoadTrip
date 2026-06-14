@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getLatestTrip, getLodgingSelections, saveLodgingSelection, listReservations } from "@/lib/db";
-import type { TripPlan, DayPlan } from "@/types";
+import { getLatestTrip, getLodgingSelections, saveLodgingSelection, listReservations, loadActiveProfile } from "@/lib/db";
+import type { TripPlan, DayPlan, FamilyProfile } from "@/types";
 import type { Reservation } from "@/lib/reservations/reservation-types";
+import { WorkationTracks } from "@/components/workation/WorkationTracks";
 import { DayPlanSkeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +28,7 @@ export function RoadbookClient() {
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [profile, setProfile] = useState<FamilyProfile | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -41,6 +43,8 @@ export function RoadbookClient() {
         }
         const res = await listReservations();
         if (mounted) setReservations(res);
+        const prof = await loadActiveProfile();
+        if (mounted) setProfile(prof);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -196,6 +200,7 @@ export function RoadbookClient() {
             onToggle={() => setActiveDay(activeDay === day.date ? null : day.date)}
             onSelectLodging={(id) => selectLodging(day.date, id)}
             reservations={reservationsOnDate(reservations, day.date)}
+            profile={profile}
           />
         ))}
       </div>
@@ -237,6 +242,7 @@ function DayCard({
   onToggle,
   onSelectLodging,
   reservations,
+  profile,
 }: {
   day: DayPlan;
   selectedLodgingId?: string;
@@ -244,6 +250,7 @@ function DayCard({
   onToggle: () => void;
   onSelectLodging: (id: string) => void;
   reservations: Reservation[];
+  profile: FamilyProfile | null;
 }) {
   const date = new Date(day.date);
   const dayStr = date.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
@@ -302,6 +309,19 @@ function DayCard({
       {/* Expanded content */}
       {isActive && (
         <div className="border-t px-4 pb-4 space-y-4" style={{ borderColor: "var(--border-subtle)" }}>
+          {/* Orchestration jour de télétravail (R4) — coworking + plan famille */}
+          {profile && day.lodging && (
+            <div className="pt-3">
+              <WorkationTracks
+                lodging={{ lat: day.lodging.lat, lng: day.lodging.lng }}
+                date={day.date}
+                workDays={profile.work.workDays}
+                workWindow={[profile.work.workStartHour, profile.work.workEndHour]}
+                heatAlert={day.heatAdvisory}
+              />
+            </div>
+          )}
+
           {/* Notes */}
           {day.notes.length > 0 && (
             <ul className="text-sm space-y-1 pt-3" style={{ color: "var(--text-secondary)" }}>

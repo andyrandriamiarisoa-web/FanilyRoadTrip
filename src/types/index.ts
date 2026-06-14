@@ -277,6 +277,63 @@ export const CoworkingSchema = z.object({
 export type Coworking = z.infer<typeof CoworkingSchema>
 
 // ---------------------------------------------------------------------------
+// POI ouvert (Overture Maps / Foursquare OS Places) — donnée quasi-statique
+// ingérée par bounding box, normalisée et embarquée (requêtable hors-ligne).
+// ---------------------------------------------------------------------------
+
+/** Taxonomie interne (mapping des catégories sources → ces valeurs). */
+export const PoiCategorySchema = z.enum([
+  "coworking",
+  "museum",
+  "park",
+  "attraction",
+  "aquarium-zoo",
+  "playground",
+  "family-restaurant",
+])
+export type PoiCategory = z.infer<typeof PoiCategorySchema>
+
+/** Une plage d'ouverture pour un jour (0 = lundi … 6 = dimanche). */
+export const OpeningPeriodSchema = z.object({
+  day: z.number().int().min(0).max(6),
+  opens: z.string().regex(/^\d{2}:\d{2}$/),
+  closes: z.string().regex(/^\d{2}:\d{2}$/),
+})
+export type OpeningPeriod = z.infer<typeof OpeningPeriodSchema>
+
+export const PoiSchema = z.object({
+  /** Identifiant stable (GERS d'Overture si présent, sinon slug seed). */
+  id: z.string(),
+  name: z.string(),
+  category: PoiCategorySchema,
+  /** Clé de commune normalisée (sans accents/casse) pour le regroupement. */
+  cityKey: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  /**
+   * Horaires d'ouverture si connus, sinon `null`. La couverture est
+   * **partielle et assumée** : on n'invente jamais d'horaires (anti-pattern #3).
+   */
+  openingHours: z.array(OpeningPeriodSchema).nullable(),
+  /** Indices d'attributs (conformité coworking, accessibilité famille…). */
+  attributes: z
+    .object({
+      wifi: z.boolean().optional(),
+      desk: z.boolean().optional(),
+      ac: z.boolean().optional(),
+      indoor: z.boolean().optional(),
+      strollerFriendly: z.boolean().optional(),
+    })
+    .optional(),
+  sourceStatus: SourceStatusSchema,
+  /** Nom de la source ouverte (Overture / Foursquare / seed). */
+  sourceName: z.string(),
+})
+export type Poi = z.infer<typeof PoiSchema>
+
+// ---------------------------------------------------------------------------
 // Trip plan (the full generated plan)
 // ---------------------------------------------------------------------------
 
