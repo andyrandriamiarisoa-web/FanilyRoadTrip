@@ -455,7 +455,8 @@ test("hébergements — recherche dispo mock, classée, source affichée, sans r
 
   // Des établissements apparaissent avec une source affichée (anti-pattern #3).
   await expect(page.getByText(/source : mock/i)).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/Marseille/i).first()).toBeVisible()
+  // Une offre concrète (carte résultat) est visible — un statut dispo/complet.
+  await expect(page.getByText(/^(Disponible|Complet)$/).first()).toBeVisible()
 
   // Aucune action de réservation exposée (read-only strict).
   await expect(page.getByRole("button", { name: /réserver|booking|payer/i })).toHaveCount(0)
