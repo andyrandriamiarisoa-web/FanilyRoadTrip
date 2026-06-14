@@ -56,6 +56,7 @@ export default function RootLayout({
     <html
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={{ overflow: "hidden" }}
       suppressHydrationWarning
     >
       <head>
@@ -63,16 +64,23 @@ export default function RootLayout({
         <link rel="icon" href="/icons/icon-192.png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="flex flex-col" style={{
+        height: "100dvh",
+        overflow: "hidden",
+        overscrollBehavior: "none",
+        paddingTop: "env(safe-area-inset-top, 0px)",
+      }}>
         <AppModeBar />
         <OfflineIndicator />
         {/*
-          padding-bottom = hauteur barre (68px) + safe-area iOS
-          La barre est fixed, le contenu ne doit pas passer dessous.
+          App-shell : l'en-tête (mode + hors-ligne) et la barre de navigation
+          restent en flux (flex-none) ; SEUL <main> défile. Évite les bugs de
+          `position: fixed` du nouveau Safari iOS (barre mal ancrée, bas de page
+          inaccessible). `min-h-0` autorise le rétrécissement → défilement réel.
         */}
         <main
-          className="flex-1 flex flex-col"
-          style={{ paddingBottom: "calc(68px + env(safe-area-inset-bottom, 0px))" }}
+          className="flex-1 min-h-0 overflow-y-auto flex flex-col"
+          style={{ WebkitOverflowScrolling: "touch" }}
         >
           {children}
         </main>
