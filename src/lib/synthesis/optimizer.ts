@@ -24,6 +24,9 @@ import type {
 } from "./types";
 import type { SynthesisAdapters } from "./adapters";
 import { curateSlot } from "./curation";
+import {
+  projection, addDays, daysBetween, isoDateTime, weekday, parseHM,
+} from "./geo-time";
 
 // ── Sac à dos 0/1 exact (programmation dynamique) ───────────────────────────
 
@@ -102,27 +105,6 @@ export function selectOptimal(input: SelectionInput): Opportunity[] {
 
 const DAY_START_MIN = 9 * 60;
 const DAY_END_MIN = 20 * 60;
-
-function projection(p: LatLng, a: LatLng, b: LatLng): number {
-  const ax = b.lng - a.lng, ay = b.lat - a.lat;
-  const px = p.lng - a.lng, py = p.lat - a.lat;
-  const denom = ax * ax + ay * ay || 1;
-  return Math.max(0, Math.min(1, (px * ax + py * ay) / denom));
-}
-function toISODate(d: Date): string { return d.toISOString().slice(0, 10); }
-function addDays(iso: string, n: number): string {
-  const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return toISODate(d);
-}
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86_400_000);
-}
-function isoDateTime(dateISO: string, minutes: number): string {
-  const d = new Date(dateISO + "T00:00:00Z"); d.setUTCMinutes(minutes); return d.toISOString();
-}
-function weekday(dateISO: string): number {
-  const day = new Date(dateISO + "T00:00:00Z").getUTCDay(); return day === 0 ? 7 : day;
-}
-function parseHM(hm: string): number { const [h, m] = hm.split(":").map(Number); return h * 60 + m; }
 
 /** Répartit un tableau ordonné en `groups` tranches contiguës aussi égales que possible. */
 function splitContiguous<T>(arr: T[], groups: number): T[][] {

@@ -18,7 +18,13 @@ const RequestSchema = z.object({
  * sur le **gabarit** (`templateNarrative`). La clé n'est lue que côté serveur.
  */
 export async function POST(req: NextRequest) {
-  const parsed = RequestSchema.safeParse(await req.json());
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Corps de requête JSON invalide" }, { status: 400 });
+  }
+  const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }

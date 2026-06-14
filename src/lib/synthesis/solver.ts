@@ -4,38 +4,15 @@ import type {
 } from "./types";
 import type { SynthesisAdapters } from "./adapters";
 import { curateSlot } from "./curation";
+import {
+  haversineKm, projection, addDays, isoDateTime, weekday, parseHM,
+} from "./geo-time";
+
+// Réexport pour les importateurs historiques (tests, curation).
+export { haversineKm };
 
 const DAY_START_MIN = 9 * 60;  // 09:00
 const DAY_END_MIN = 20 * 60;   // 20:00
-
-export function haversineKm(a: LatLng, b: LatLng): number {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const la1 = (a.lat * Math.PI) / 180, la2 = (b.lat * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-// projection scalaire de p sur l'axe a->b, normalisée 0..1
-function projection(p: LatLng, a: LatLng, b: LatLng): number {
-  const ax = b.lng - a.lng, ay = b.lat - a.lat;
-  const px = p.lng - a.lng, py = p.lat - a.lat;
-  const denom = ax * ax + ay * ay || 1;
-  return Math.max(0, Math.min(1, (px * ax + py * ay) / denom));
-}
-
-function toISODate(d: Date): string { return d.toISOString().slice(0, 10); }
-function addDays(iso: string, n: number): string {
-  const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return toISODate(d);
-}
-function isoDateTime(dateISO: string, minutes: number): string {
-  const d = new Date(dateISO + "T00:00:00Z"); d.setUTCMinutes(minutes); return d.toISOString();
-}
-function weekday(dateISO: string): number { // 1=lun..7=dim
-  const day = new Date(dateISO + "T00:00:00Z").getUTCDay(); return day === 0 ? 7 : day;
-}
-function parseHM(hm: string): number { const [h, m] = hm.split(":").map(Number); return h * 60 + m; }
 
 /** Top suggestions curatées (S4) pour un créneau de contrainte, classées sans exclure. */
 function curatedFor(
