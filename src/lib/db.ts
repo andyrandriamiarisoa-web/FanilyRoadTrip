@@ -10,6 +10,7 @@ import {
 } from "@/lib/profile/profile";
 import type { Expense, ExpenseCategory } from "@/lib/budget/budget";
 import type { Reservation } from "@/lib/reservations/reservation-types";
+import type { Person } from "@/lib/synthesis/types";
 import { defaultPoll, type Poll } from "@/lib/collab/poll";
 
 /** Identifiant du profil foyer actif (un seul foyer pour l'instant). */
@@ -81,6 +82,7 @@ export class OdysseeDatabase extends Dexie {
   packingState!: EntityTable<PackingStateRow, "id">;
   reservations!: EntityTable<Reservation, "id">;
   pollState!: EntityTable<PollStateRow, "id">;
+  people!: EntityTable<Person, "id">;
 
   constructor() {
     super("odyssee-db");
@@ -109,6 +111,10 @@ export class OdysseeDatabase extends Dexie {
     // v6 : sondage collaboratif (M9).
     this.version(6).stores({
       pollState: "id",
+    });
+    // v7 : graphe social géolocalisé (S5) — personnes-ancres, 100 % local.
+    this.version(7).stores({
+      people: "id, title",
     });
   }
 }
@@ -344,4 +350,24 @@ export async function loadPoll(): Promise<Poll> {
 export async function savePoll(poll: Poll): Promise<void> {
   const db = getDb();
   await db.pollState.put({ id: POLL_STATE_ID, ...poll });
+}
+
+// ---------------------------------------------------------------------------
+// Graphe social géolocalisé (S5) — personnes-ancres, stockage local privé
+// ---------------------------------------------------------------------------
+
+/** Liste les personnes enregistrées (triées par nom). */
+export async function listPeople(): Promise<Person[]> {
+  const db = getDb();
+  return db.people.orderBy("title").toArray();
+}
+
+export async function addPerson(person: Person): Promise<void> {
+  const db = getDb();
+  await db.people.put(person);
+}
+
+export async function deletePerson(id: string): Promise<void> {
+  const db = getDb();
+  await db.people.delete(id);
 }

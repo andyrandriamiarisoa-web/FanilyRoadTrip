@@ -28,6 +28,12 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | R4 | **Orchestration jours de télétravail** (coworking prioritaire + plan visites famille bébé/canicule-aware) | ✅ |
 | R5 | **Adaptateur disponibilité hôtels** (`LodgingAvailabilityProvider`, mock-first + Amadeus live, read-only, cache, classement sans exclusion) | ✅ |
 | R6 | **Ménage & doc** (env Amadeus, `TESLA_ACCESS_TOKEN` dev-only, `CLAUDE.md`/`.env.example` à jour) | ✅ |
+| S1 | **Modèle de synthèse + solveur heuristique** (« Ancre & Orbite » — dates calculées, adaptateurs injectés) | ✅ |
+| S2 | **Multi-candidats & ambiances** (Reposant/Sociable/Découvreur/Thématique, regret exposé) | ✅ |
+| S3 | **Cadran de dates + OpenAgenda** (flexibilité des dates première classe, événements datés mock/live) | ✅ |
+| S4 | **Contraintes comme découverte** (`curateSlot` — pauses/charge/canicule/jour travaillé enrichis, sans exclure) | ✅ |
+| S5 | **Graphe social géolocalisé** (personnes-ancres souples, IndexedDB local, ambiance Sociable) | ✅ |
+| S6 | **Récit IA** (barde, pas inventeur — prompt + repli gabarit gratuit, aucun fait inventé) | ✅ |
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -217,6 +223,27 @@ mock-first). `sourceStatus` : `seed` = pré-embarqué (jeu ouvert / seed),
 `estimated` = calculé par l'app, `verified` = récupéré en direct au moment de la
 requête.
 
+**Synthèse de voyage (S1–S6)** : Odyssée n'est plus seulement un *éditeur*
+d'itinéraire mais un *synthétiseur*. À partir d'une **ancre** (événement à date
+fixe), d'**envies** et du Profil Foyer, l'app **compose** plusieurs voyages datés
+(**dates de début/fin calculées**, pas saisies). Cœur **pur** sous
+`src/lib/synthesis/` (dépendances par **injection**, `adapters.ts`) ; seul point
+de couture avec R1–R6 = `wiring.ts` (durées réalistes `estimateRealisticLeg`,
+vigilance chaleur via la couche météo). **S1** solveur heuristique « Ancre &
+Orbite » (`solver.ts`, daté/faisable, pauses bébé, blocage 12h–16h sous alerte
+seulement). **S2** multi-candidats par ambiance (`candidates.ts`/`scoring.ts` —
+Reposant/Sociable/Découvreur/Thématique, classés sans exclure, regret exposé).
+**S3** cadran de dates (`date-flex.ts`) + événements datés OpenAgenda
+(`src/lib/providers/events/`, mock/live). **S4** `curateSlot` transforme les
+créneaux de contrainte (pause bébé, charge, canicule, jour travaillé) en
+opportunités classées sans exclure. **S5** graphe social local
+(`people-store.ts` → Dexie v7 `people`, personnes-ancres souples, ambiance
+Sociable). **S6** récit IA *barde, pas inventeur* (`narrative.ts` — prompt +
+repli gabarit gratuit, n'expose que les faits du JSON validé). API
+`/api/synthesis` ; UI `/composer` (+ `PeopleEditor`). Mock-first, validé Zod
+(`schemas.ts`), fixtures `src/data/synthesis-fixtures.ts`. *Durcissement OR-Tools
+= lot S7 ultérieur (hors périmètre).*
+
 ## Commandes essentielles
 
 ```bash
@@ -263,6 +290,7 @@ AMADEUS_CLIENT_ID       # Dispo hôtels R5 (optionnel → mock), serveur uniquem
 AMADEUS_CLIENT_SECRET   # Dispo hôtels R5, serveur uniquement
 LITEAPI_KEY             # Dispo hôtels — alternative (optionnel)
 LODGING_AVAILABILITY_TTL_SECONDS  # TTL cache dispo hôtels (défaut 600)
+OPENAGENDA_PUBLIC_KEY   # Événements datés synthèse S3 (optionnel → mock)
 TESLA_CLIENT_ID         # OAuth Fleet API (flux authorization_code) — voir docs/TESLA.md
 TESLA_CLIENT_SECRET     # OAuth Fleet API, serveur uniquement
 TESLA_REDIRECT_URI      # .../api/tesla/callback (enregistrée côté Tesla Developer)
