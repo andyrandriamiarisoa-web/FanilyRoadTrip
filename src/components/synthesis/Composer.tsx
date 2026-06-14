@@ -27,6 +27,8 @@ export function Composer() {
   const [dateOptions, setDateOptions] = useState<DateOption[]>([]);
   const [selected, setSelected] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [enriched, setEnriched] = useState<{ idx: number; text: string; source: string } | null>(null);
+  const [narrating, setNarrating] = useState(false);
 
   async function compose() {
     setLoading(true);
@@ -64,7 +66,26 @@ export function Composer() {
     [candidates],
   );
 
+  async function enrichNarrative() {
+    if (!chosen) return;
+    setNarrating(true);
+    try {
+      const res = await fetch("/api/synthesis/narrative", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ candidate: chosen }),
+      });
+      const data = await res.json();
+      if (res.ok && data.text) setEnriched({ idx: selected, text: data.text, source: data.source });
+    } catch {
+      // On garde le gabarit en cas d'échec.
+    } finally {
+      setNarrating(false);
+    }
+  }
+
   const chosen = candidates?.[selected] ?? null;
+  const narrative = enriched && enriched.idx === selected ? enriched : null;
 
   return (
     <div className="space-y-6">
@@ -168,15 +189,25 @@ export function Composer() {
         </section>
       )}
 
-      {/* Récit (gabarit) du voyage choisi */}
+      {/* Récit du voyage choisi (gabarit gratuit ; enrichi par IA à la demande) */}
       {chosen && (
         <section className="space-y-2">
-          <h2 className="font-bold text-lg" style={{ color: "var(--text-primary)" }}>Récit — {chosen.label}</h2>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="font-bold text-lg" style={{ color: "var(--text-primary)" }}>Récit — {chosen.label}</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {narrative?.source === "ai" ? "Récit enrichi (IA)" : "Récit gabarit"}
+              </span>
+              <Button variant="secondary" size="sm" onClick={enrichNarrative} loading={narrating} disabled={narrating}>
+                Enrichir le récit (IA)
+              </Button>
+            </div>
+          </div>
           <pre
             className="card p-4 text-sm whitespace-pre-wrap font-sans"
             style={{ color: "var(--text-primary)" }}
           >
-            {templateNarrative(chosen)}
+            {narrative?.text ?? templateNarrative(chosen)}
           </pre>
         </section>
       )}

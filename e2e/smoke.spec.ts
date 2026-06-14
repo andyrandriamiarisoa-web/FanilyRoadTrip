@@ -481,6 +481,10 @@ test("composer — compose plusieurs voyages datés avec récit et cadran de dat
   // Récit du voyage sélectionné + cadran de dates.
   await expect(page.getByRole("heading", { name: /^Récit —/i })).toBeVisible()
   await expect(page.getByRole("heading", { name: /bougeait les dates/i })).toBeVisible()
+
+  // Enrichissement du récit (S6) — en mock, repli gabarit déterministe.
+  await page.getByRole("button", { name: /enrichir le récit/i }).click()
+  await expect(page.getByText(/Récit gabarit|Récit enrichi/i)).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------

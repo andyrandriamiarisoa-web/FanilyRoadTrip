@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { MockLodgingAvailabilityProvider, rankOffers } from "./mock"
 import { CachingLodgingAvailabilityProvider } from "./cache"
+import { mapLiteApiResponse, type LiteApiHotelRaw } from "./liteapi"
 import { nightsBetween, type AvailabilityRequest, type HotelOffer } from "./types"
 
 const req: AvailabilityRequest = {
@@ -76,6 +77,30 @@ describe("rankOffers — classer sans exclure (anti-pattern #1)", () => {
     const ranked = rankOffers(offers)
     expect(ranked.map((o) => o.id)).toEqual(["pas-cher", "cher", "indispo"])
     expect(ranked).toHaveLength(3) // l'indisponible reste présent
+  })
+})
+
+describe("mapLiteApiResponse — mapping LiteAPI → offres normalisées", () => {
+  it("retient le prix minimal, marque la source, classe sans exclure", () => {
+    const raw: LiteApiHotelRaw[] = [
+      {
+        hotelId: "h1", name: "Hôtel A", latitude: 43.3, longitude: 5.37,
+        roomTypes: [
+          { rates: [{ retailRate: { total: [{ amount: 240, currency: "EUR" }] } }] },
+          { rates: [{ retailRate: { total: [{ amount: 200, currency: "EUR" }] } }] },
+        ],
+      },
+      { hotelId: "h2", name: "Hôtel Complet", roomTypes: [] }, // pas de tarif → indisponible
+    ]
+    const offers = mapLiteApiResponse(raw, req, "2026-08-07T08:00:00.000Z")
+    expect(offers).toHaveLength(2) // l'indisponible n'est pas exclu
+    expect(offers[0].id).toBe("h1") // disponible en tête
+    expect(offers[0].priceTotalCents).toBe(20000) // min(240,200) × 100
+    expect(offers[0].sourceName).toBe("LiteAPI")
+    expect(offers[0].sourceStatus).toBe("verified")
+    const complet = offers.find((o) => o.id === "h2")!
+    expect(complet.available).toBe(false)
+    expect(complet.priceTotalCents).toBeNull()
   })
 })
 

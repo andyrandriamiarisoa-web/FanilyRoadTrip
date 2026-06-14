@@ -21,6 +21,7 @@
     "@anthropic-ai/sdk": "^0.104.1",
     "@serwist/next": "^9.5.11",
     "dexie": "^4.4.3",
+    "glpk.js": "^4.0.2",
     "lz-string": "^1.5.0",
     "maplibre-gl": "^5.24.0",
     "next": "16.2.9",

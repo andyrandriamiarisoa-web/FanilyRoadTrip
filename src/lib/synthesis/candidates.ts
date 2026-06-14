@@ -1,7 +1,8 @@
 import type { SynthesisRequest, TripCandidate, Ambiance, Opportunity } from "./types";
 import type { SynthesisAdapters } from "./adapters";
 import { opportunityWeight, scoreCandidate } from "./scoring";
-import { selectOptimal, layoutAligned } from "./optimizer";
+import { layoutAligned } from "./optimizer";
+import { selectWithSolver } from "./ilp";
 
 const AMBIANCE_LABELS: Record<Ambiance, string> = {
   reposant: "Le Reposant", sociable: "Le Sociable", decouvreur: "Le Découvreur", theme: "Le Thématique",
@@ -17,13 +18,13 @@ const AMBIANCE_BUDGET_RATIO: Record<Ambiance, number> = {
  * puis sac à dos sur le reste sous un budget de temps dépendant de l'ambiance.
  * On **classe sans exclure** (le reste du pool reste consultable ailleurs).
  */
-function pickForAmbiance(req: SynthesisRequest, ambiance: Ambiance): Opportunity[] {
+async function pickForAmbiance(req: SynthesisRequest, ambiance: Ambiance): Promise<Opportunity[]> {
   const nonPeople = req.opportunities ?? [];
   const people = req.people ?? [];
   const nonPeopleCost = nonPeople.reduce((s, o) => s + o.durationMin, 0);
   const peopleCost = people.reduce((s, o) => s + o.durationMin, 0);
   const budgetMin = peopleCost + Math.round(nonPeopleCost * AMBIANCE_BUDGET_RATIO[ambiance]);
-  return selectOptimal({
+  return selectWithSolver({
     pool: nonPeople,
     people,
     weightOf: (o) => opportunityWeight(o, ambiance, req.themeCategory),
@@ -41,7 +42,7 @@ export async function generateCandidates(req: SynthesisRequest, adapters: Synthe
 
   const out: TripCandidate[] = [];
   for (const ambiance of ambiances) {
-    const selected = pickForAmbiance(req, ambiance);
+    const selected = await pickForAmbiance(req, ambiance);
     const cand = await layoutAligned(
       { anchor, selected, window: req.window, constraints: req.constraints, ambiance, label: AMBIANCE_LABELS[ambiance], pool },
       adapters,
