@@ -107,7 +107,7 @@ test("theme toggle switches between dark and light", async ({ page }) => {
 // Navigation — all main routes respond 200
 // ---------------------------------------------------------------------------
 
-const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline", "/lieux", "/hebergements"]
+const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline", "/lieux", "/hebergements", "/composer"]
 
 for (const route of MAIN_ROUTES) {
   test(`route ${route} responds 200`, async ({ request }) => {
@@ -461,6 +461,41 @@ test("hébergements — recherche dispo mock, classée, source affichée, sans r
   // Aucune action de réservation exposée (read-only strict).
   await expect(page.getByRole("button", { name: /réserver|booking|payer/i })).toHaveCount(0)
   await expect(page.getByRole("link", { name: /réserver|booking/i })).toHaveCount(0)
+})
+
+// ---------------------------------------------------------------------------
+// Synthèse de voyage — Composer (S1–S3, S6)
+// ---------------------------------------------------------------------------
+
+test("composer — compose plusieurs voyages datés avec récit et cadran de dates", async ({
+  page,
+}) => {
+  await page.goto("/composer")
+  await expect(page.getByRole("heading", { name: /composer un voyage/i })).toBeVisible()
+
+  await page.getByRole("button", { name: /composer mes voyages/i }).click()
+
+  // Plusieurs voyages composés, dates calculées, ambiances distinctes.
+  await expect(page.getByRole("heading", { name: /voyages composés/i })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText(/Le (Reposant|Découvreur|Sociable)/).first()).toBeVisible()
+  // Récit du voyage sélectionné + cadran de dates.
+  await expect(page.getByRole("heading", { name: /^Récit —/i })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /bougeait les dates/i })).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// Graphe social géolocalisé — personnes-ancres (S5)
+// ---------------------------------------------------------------------------
+
+test("composer — ajouter une personne, persistée localement", async ({ page }) => {
+  await page.goto("/composer")
+  await page.getByLabel("Prénom").fill("TestAmi")
+  await page.getByRole("button", { name: /ajouter cette personne/i }).click()
+
+  // Apparaît dans la liste et survit à un rechargement (IndexedDB).
+  await expect(page.getByText(/TestAmi/i).first()).toBeVisible({ timeout: 10_000 })
+  await page.reload()
+  await expect(page.getByText(/TestAmi/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
