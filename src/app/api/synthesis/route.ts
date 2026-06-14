@@ -5,7 +5,13 @@ import { exploreDateFlex } from "@/lib/synthesis/date-flex";
 import { createSynthesisAdapters } from "@/lib/synthesis/wiring";
 
 export async function POST(req: NextRequest) {
-  const parsed = SynthesisRequestSchema.safeParse(await req.json());
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Corps de requête JSON invalide" }, { status: 400 });
+  }
+  const parsed = SynthesisRequestSchema.safeParse(body);
   if (!parsed.success)
     return NextResponse.json({ error: "Requête invalide", issues: parsed.error.issues }, { status: 400 });
 

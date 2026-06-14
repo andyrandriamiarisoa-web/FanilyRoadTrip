@@ -1,6 +1,7 @@
 import type { SynthesisRequest } from "./types";
 import type { SynthesisAdapters } from "./adapters";
 import { generateCandidates } from "./candidates";
+import { addDays } from "./geo-time";
 
 export interface DateOption {
   startDate: string;
@@ -10,10 +11,6 @@ export interface DateOption {
   caniculeDays: number;
   unlocked: string[]; // titres débloqués vs base
   lost: string[];
-}
-
-function addDays(iso: string, n: number): string {
-  const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
 }
 
 // Re-joue la synthèse sur un balayage de dates de départ et expose ce que bouger les dates débloque.
