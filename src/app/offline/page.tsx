@@ -7,10 +7,7 @@ export const metadata: Metadata = {
 
 export default function OfflinePage() {
   return (
-    <div
-      className="flex flex-col items-center justify-center flex-1 p-8 text-center gap-6"
-      style={{ minHeight: "calc(100dvh - 36px)" }}
-    >
+    <div className="flex flex-col items-center justify-center flex-1 p-8 text-center gap-6">
       <div
         className="w-20 h-20 rounded-full flex items-center justify-center"
         style={{ background: "var(--bg-surface)" }}

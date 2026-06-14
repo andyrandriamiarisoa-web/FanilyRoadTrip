@@ -336,10 +336,9 @@ export function BottomNav() {
       <nav
         aria-label="Navigation principale"
         style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
+          position: "relative",
+          flexShrink: 0,
+          width: "100%",
           height: "calc(68px + env(safe-area-inset-bottom, 0px))",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           background: "var(--bg-card)",
