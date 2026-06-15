@@ -12,6 +12,7 @@
 
 import { z } from "zod"
 import type { SourceStatus } from "@/lib/providers/types"
+import type { VehicleProfile } from "@/types"
 
 export interface GeoPoint {
   name: string
@@ -33,14 +34,39 @@ export interface VehicleParams {
   maxChargeSocPct: number
 }
 
+/**
+ * Défauts Model S Raven (2019-2021) — valeurs **réelles** (pas théoriques EPA).
+ *   base ≈ 185 Wh/km (≈ 18,5 kWh/100 km) : conduite mixte ~110 km/h.
+ *   × highwayFactor 1,32 sur autoroute à 130 km/h ≈ 244 Wh/km (≈ 24,4 kWh/100 km).
+ *   × heatFactor 1,08 en canicule (clim soutenue) ≈ 264 Wh/km (≈ 26,4 kWh/100 km).
+ * Le planificateur applique TOUJOURS le facteur autoroute (trajets inter-cités).
+ * Ces défauts ne servent que de repli : le Profil Foyer est injecté en priorité.
+ */
 export const DEFAULT_VEHICLE_PARAMS: VehicleParams = {
   usableKwh: 95,
   baseConsumptionWhKm: 185,
-  highwayFactor: 1.18,
-  heatFactor: 1.06,
+  highwayFactor: 1.32,
+  heatFactor: 1.08,
   maxChargingKw: 250,
   bufferSocPct: 12,
   maxChargeSocPct: 80,
+}
+
+/**
+ * Convertit les paramètres véhicule du **Profil Foyer** (convention Wh/100 km,
+ * SoC en fractions 0–1) vers les `VehicleParams` du planificateur (Wh/km, SoC en
+ * %). C'est le pont qui fait que **modifier le profil change le routage**.
+ */
+export function vehicleParamsFromProfile(v: VehicleProfile): VehicleParams {
+  return {
+    usableKwh: v.usableKwh,
+    baseConsumptionWhKm: v.baseConsumptionWh100km / 100,
+    highwayFactor: v.highwayFactor,
+    heatFactor: v.heatFactor,
+    maxChargingKw: v.maxChargingKw,
+    bufferSocPct: v.bufferSoc * 100,
+    maxChargeSocPct: v.targetChargeSoc * 100,
+  }
 }
 
 export interface ChargerCandidate {
@@ -131,6 +157,19 @@ export const RoutePlanRequestSchema = z.object({
   startSocSource: z.enum(["live", "target"]),
   targetArrivalSocPct: z.number().min(0).max(100),
   isHeatwave: z.boolean().optional(),
+  /** Paramètres véhicule injectés depuis le Profil Foyer (sinon défauts Raven). */
+  vehicle: z
+    .object({
+      usableKwh: z.number().positive(),
+      baseConsumptionWhKm: z.number().positive(),
+      highwayFactor: z.number().positive(),
+      heatFactor: z.number().positive(),
+      maxChargingKw: z.number().positive(),
+      bufferSocPct: z.number().min(0).max(100),
+      maxChargeSocPct: z.number().min(0).max(100),
+    })
+    .partial()
+    .optional(),
 })
 
 // Schéma Zod de sortie — validation aux frontières (API/persistance).

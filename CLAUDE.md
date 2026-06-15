@@ -42,8 +42,14 @@ copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
 et horodate `updatedAt`. La logique pure vit dans `src/lib/profile/profile.ts`
 (testée), la persistance dans `src/lib/db.ts` (`loadActiveProfile`,
 `saveProfilePatch`). Le `profileId` actif est transmis à `/api/agents/plan` et
-estampillé sur le `TripPlan` généré. *Prochaine étape : injecter chaque champ du
-profil dans le moteur de contraintes (M4/M5) plutôt que les constantes de référence.*
+estampillé sur le `TripPlan` généré. **Paramètres véhicule injectés (M4)** :
+`vehicleParamsFromProfile` (`src/lib/routing/types.ts`) convertit le bloc
+`vehicle` du profil (Wh/100 km, SoC en fractions) vers les `VehicleParams` du
+planificateur (Wh/km, SoC en %) ; `ChargePlanner` les envoie à `/api/route/plan`
+(schéma Zod élargi) → **modifier le profil change réellement le routage**
+(consommation, charge, buffer). Valeurs **réelles** Model S Raven : ~18,5 kWh/100 km
+mixte, ~24 kWh/100 km autoroute (130 km/h), ~26 en canicule. *Prochaine étape :
+injecter aussi les pauses/horaires du profil dans la fusion M5.*
 
 **Connexion Tesla (M3)** : couche `VehicleProvider` (`src/lib/vehicle/`) derrière
 deux implémentations — `MockVehicleProvider` (défaut, déterministe, hors-ligne)

@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest"
 import { SeedRoutePlanner, seedRoutePlanner } from "./planner"
-import { RoutePlanResultSchema, type ChargerCandidate, type RoutePlanRequest } from "./types"
+import {
+  RoutePlanResultSchema,
+  DEFAULT_VEHICLE_PARAMS,
+  vehicleParamsFromProfile,
+  type ChargerCandidate,
+  type RoutePlanRequest,
+} from "./types"
+import { DEFAULT_FAMILY_PROFILE } from "@/data/default-profile"
 
 const FRESNES = { name: "Fresnes", lat: 48.754, lng: 2.321 }
 const MARSEILLE = { name: "Marseille", lat: 43.296, lng: 5.37 }
@@ -90,6 +97,37 @@ describe("SeedRoutePlanner — SoC de départ", () => {
     const consumption = (segs: { consumptionKwh: number }[]) =>
       segs.reduce((s, x) => s + x.consumptionKwh, 0)
     expect(consumption(heat.segments)).toBeGreaterThan(consumption(normal.segments))
+  })
+})
+
+describe("Injection des paramètres véhicule du Profil Foyer", () => {
+  it("convertit Wh/100km → Wh/km et SoC fractions → %", () => {
+    const p = vehicleParamsFromProfile(DEFAULT_FAMILY_PROFILE.vehicle)
+    expect(p.baseConsumptionWhKm).toBeCloseTo(185, 6)
+    expect(p.bufferSocPct).toBeCloseTo(12, 6)
+    expect(p.maxChargeSocPct).toBeCloseTo(80, 6)
+    expect(p.usableKwh).toBe(DEFAULT_FAMILY_PROFILE.vehicle.usableKwh)
+    // Le profil par défaut reflète les défauts du planificateur (injection cohérente).
+    expect(p.highwayFactor).toBeCloseTo(DEFAULT_VEHICLE_PARAMS.highwayFactor, 6)
+    expect(p.heatFactor).toBeCloseTo(DEFAULT_VEHICLE_PARAMS.heatFactor, 6)
+  })
+
+  it("la consommation du profil pilote le routage (arrivée plus basse si plus gourmand)", () => {
+    // Trajet court sans recharge pour les deux véhicules → comparaison directe
+    // du SoC d'arrivée (relation monotone avec la consommation).
+    const shortReq = (vehicle?: RoutePlanRequest["vehicle"]): RoutePlanRequest => ({
+      origin: { name: "Dijon", lat: 47.322, lng: 5.04 },
+      destination: { name: "Mâcon", lat: 46.29, lng: 4.83 },
+      startSocPct: 80,
+      startSocSource: "live",
+      targetArrivalSocPct: 20,
+      vehicle,
+    })
+    const base = seedRoutePlanner.plan(shortReq())
+    const thirsty = seedRoutePlanner.plan(shortReq({ ...DEFAULT_VEHICLE_PARAMS, baseConsumptionWhKm: 280 }))
+    expect(base.chargeStops).toHaveLength(0)
+    expect(thirsty.chargeStops).toHaveLength(0)
+    expect(thirsty.segments[0].endSocPct).toBeLessThan(base.segments[0].endSocPct)
   })
 })
 
