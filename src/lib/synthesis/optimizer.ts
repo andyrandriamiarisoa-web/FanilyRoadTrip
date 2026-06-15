@@ -243,7 +243,7 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
       // Blocage canicule 12h–16h (jours d'alerte uniquement).
       const blockStart = parseHM(c.caniculeNoDrive.start);
       const blockEnd = parseHM(c.caniculeNoDrive.end);
-      if (est.minutes > 1 && heat && clock < blockEnd && clock + est.minutes > blockStart) {
+      if (est.minutes > 0 && heat && clock < blockEnd && clock + est.minutes > blockStart) {
         stops.push({
           title: "Conduite déconseillée (alerte canicule)",
           kind: "canicule-block",

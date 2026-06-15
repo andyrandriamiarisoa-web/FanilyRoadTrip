@@ -105,7 +105,7 @@ export async function layout(p: LayoutParams, adapters: SynthesisAdapters): Prom
 
       const blockStart = parseHM(c.caniculeNoDrive.start);
       const blockEnd = parseHM(c.caniculeNoDrive.end);
-      if (heat && clock < blockEnd && clock + est.minutes > blockStart) {
+      if (est.minutes > 0 && heat && clock < blockEnd && clock + est.minutes > blockStart) {
         stops.push({
           title: "Conduite déconseillée (alerte canicule)",
           kind: "canicule-block",
@@ -128,16 +128,18 @@ export async function layout(p: LayoutParams, adapters: SynthesisAdapters): Prom
         clock += c.babyPauseDurationMin; driveSinceBreak = 0;
       }
 
-      const driveStart = clock;
-      clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
-      stops.push({
-        title: next.isAnchor ? anchor.title : (next.opp ? `Trajet vers ${next.opp.title}` : "Trajet"),
-        kind: "drive",
-        start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
-        location: next.loc,
-        note: est.chargeStops > 0 ? `${est.chargeStops} arrêt(s) Superchargeur inclus` : undefined,
-        sourceStatus: est.sourceStatus,
-      });
+      if (remaining > 0) {
+        const driveStart = clock;
+        clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
+        stops.push({
+          title: next.isAnchor ? anchor.title : (next.opp ? `Trajet vers ${next.opp.title}` : "Trajet"),
+          kind: "drive",
+          start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
+          location: next.loc,
+          note: est.chargeStops > 0 ? `${est.chargeStops} arrêt(s) Superchargeur inclus` : undefined,
+          sourceStatus: est.sourceStatus,
+        });
+      }
       curLoc = next.loc;
       segIdx++;
 
