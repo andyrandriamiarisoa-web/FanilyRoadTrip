@@ -102,7 +102,8 @@ export class LiteApiLodgingAvailabilityProvider implements LodgingAvailabilityPr
         checkout: req.checkOut,
         currency: "EUR",
         guestNationality: "FR",
-        occupancies: [{ adults: req.adults, children: req.children > 0 ? [req.children] : [] }],
+        // `children` = tableau des ÂGES (longueur = nb d'enfants), pas le nombre.
+        occupancies: [{ adults: req.adults, children: Array.from({ length: req.children }, () => 8) }],
         latitude: req.lat,
         longitude: req.lng,
         radius: (this.opts.radiusKm ?? 8) * 1000,

@@ -75,6 +75,12 @@ describe("calculateChargeMinutes", () => {
     expect(calculateChargeMinutes({ startSoc: 0.6, targetSoc: 0.4, maxKw: 200 })).toBe(0)
   })
 
+  it("returns a finite 0 for invalid charger power (no Infinity/NaN)", () => {
+    expect(calculateChargeMinutes({ startSoc: 0.2, targetSoc: 0.8, maxKw: 0 })).toBe(0)
+    expect(calculateChargeMinutes({ startSoc: 0.2, targetSoc: 0.8, maxKw: -50 })).toBe(0)
+    expect(calculateChargeMinutes({ startSoc: 0.2, targetSoc: 0.8, maxKw: Number.NaN })).toBe(0)
+  })
+
   it("Phase 1 only: 10% → 50% at V3 200kW (95% of 200 = 190kW)", () => {
     // Energy = 0.40 × 95 kWh = 38 kWh
     // Power = 190 kW

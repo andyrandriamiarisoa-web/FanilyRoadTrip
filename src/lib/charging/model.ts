@@ -66,6 +66,8 @@ export function calculateChargeMinutes(opts: {
   const { startSoc, targetSoc, maxKw } = opts
 
   if (targetSoc <= startSoc) return 0
+  // Puissance de borne invalide → pas d'estimation possible (évite Infinity/NaN).
+  if (!Number.isFinite(maxKw) || maxKw <= 0) return 0
 
   // Phase boundaries (as fractions)
   const PHASE1_END = 0.50  // end of fast phase
