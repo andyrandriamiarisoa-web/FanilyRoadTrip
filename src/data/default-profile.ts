@@ -18,9 +18,11 @@ export const DEFAULT_FAMILY_PROFILE: FamilyProfile = {
   vehicle: {
     model: "Tesla Model S Raven",
     usableKwh: 95,
-    baseConsumptionWh100km: 17500,
-    highwayFactor: 1.25,
-    heatFactor: 1.1,
+    // Consommation réelle (pas EPA) : ~18,5 kWh/100 km en mixte, ~24 kWh/100 km
+    // sur autoroute à 130 km/h, ~26 kWh/100 km en canicule (clim).
+    baseConsumptionWh100km: 18500,
+    highwayFactor: 1.32,
+    heatFactor: 1.08,
     maxChargingKw: 250,
     bufferSoc: 0.12,
     targetChargeSoc: 0.8,

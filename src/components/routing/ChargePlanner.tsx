@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { getSelectedVehicle, loadActiveProfile } from "@/lib/db";
 import { REFERENCE_TRIP_REQUEST } from "@/data/voyage-reference";
-import type { RoutePlanResult } from "@/lib/routing/types";
+import type { RoutePlanResult, VehicleParams } from "@/lib/routing/types";
+import { vehicleParamsFromProfile } from "@/lib/routing/types";
 import { timelineFromLegs, formatHour } from "@/lib/constraints/fusion";
 import type { TimelineEvent, TimelineResult } from "@/lib/constraints/types";
 import type { HeatAlert } from "@/lib/constraints/heat-alert";
@@ -57,7 +58,12 @@ export function ChargePlanner() {
     return { pct: data.state.soc, source: "live" };
   }
 
-  async function planRoute(pct: number, source: SocSource, isHeatwave: boolean): Promise<RoutePlanResult> {
+  async function planRoute(
+    pct: number,
+    source: SocSource,
+    isHeatwave: boolean,
+    vehicle: VehicleParams,
+  ): Promise<RoutePlanResult> {
     const res = await fetch("/api/route/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -68,6 +74,7 @@ export function ChargePlanner() {
         startSocSource: source,
         targetArrivalSocPct: targetArrival,
         isHeatwave,
+        vehicle,
       }),
     });
     const data = await res.json();
@@ -108,8 +115,13 @@ export function ChargePlanner() {
     try {
       const { pct, source } = await resolveStartSoc();
 
+      // Profil Foyer → paramètres véhicule réels injectés dans le planificateur
+      // (consommation, charge, buffer). Modifier le profil change le routage.
+      const profile = await loadActiveProfile();
+      const vehicle = vehicleParamsFromProfile(profile.vehicle);
+
       // 1) Plan initial (canicule = réglage manuel s'il est forcé).
-      let routePlan = await planRoute(pct, source, forceHeat);
+      let routePlan = await planRoute(pct, source, forceHeat, vehicle);
 
       // 2) Vigilance chaleur réelle sur le trajet (météo par segment).
       const alert = await detectHeatAlert(routePlan);
@@ -118,12 +130,11 @@ export function ChargePlanner() {
 
       // 3) Si la canicule est auto-détectée, replanifier avec la surconsommation.
       if (effectiveHeat !== forceHeat) {
-        routePlan = await planRoute(pct, source, effectiveHeat);
+        routePlan = await planRoute(pct, source, effectiveHeat, vehicle);
       }
       setPlan(routePlan);
 
       // 4) Fusion des contraintes (M5) : pauses bébé, canicule (conditionnelle), télétravail.
-      const profile = await loadActiveProfile();
       const legs = routePlan.segments.map((seg, i) => ({
         driveMinutes: seg.durationMinutes,
         toName: seg.toName,
