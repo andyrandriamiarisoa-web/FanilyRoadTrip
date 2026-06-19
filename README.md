@@ -8,7 +8,7 @@ Application PWA mobile-first en français pour planifier un voyage routier multi
 
 Voyage de référence : **Fresnes (94) ↔ Marseille** — mariage le 8 août 2026.
 
-📖 **[Guide d'utilisation complet](docs/GUIDE.md)** · 🔒 **[Sécurité](SECURITY.md)**
+📖 **[Guide d'utilisation](docs/GUIDE.md)** · ⚙️ **[Mode d'emploi de configuration](docs/INSTALLATION.md)** · 🔒 **[Sécurité](SECURITY.md)**
 
 ---
 
