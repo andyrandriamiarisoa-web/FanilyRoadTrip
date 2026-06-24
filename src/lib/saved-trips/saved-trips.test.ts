@@ -33,11 +33,13 @@ const anchoredForm: AnchoredFormState = {
   anchorTitle: "Mariage Marie",
   anchorCity: "Marseille",
   anchorStartDate: "2026-08-08",
+  anchorEndDate: "2026-08-08",
   anchorStartTime: "16:00",
   anchorEndTime: "23:30",
   originCity: "Paris",
   earliestStart: "2026-08-01",
   latestEnd: "2026-08-14",
+  intent: "maximize",
   minNights: 7,
   maxNights: 10,
   stops: [
