@@ -1,14 +1,10 @@
 /**
  * `AnchoredTripForm` — formulaire du **Mode B — Voyage avec ancre**.
  *
- * Saisie : une **ancre** (événement à date et lieu fixes) + un point de
- * départ + une fenêtre (min/max nuits) + des étapes en chemin optionnelles.
- * Construit un `SynthesisRequest` complet et appelle `/api/synthesis`
- * (solveur déterministe S1–S7).
- *
- * Les contraintes (bébé, télétravail, canicule) sont dérivées du Profil Foyer.
- * Les étapes utilisateur deviennent des `Opportunity` à score élevé pour que
- * le solveur les retienne ; une date fixée se traduit en `timeWindow` restreint.
+ * Le state du formulaire est piloté depuis `PlanWizard` (édition d'un voyage
+ * sauvegardé possible). Construit un `SynthesisRequest` et appelle
+ * `/api/synthesis` (solveur déterministe S1–S7). Les contraintes (bébé,
+ * télétravail, canicule) viennent du Profil Foyer.
  */
 "use client";
 
@@ -25,6 +21,7 @@ import type {
 } from "@/lib/synthesis/types";
 import type { DateOption } from "@/lib/synthesis/date-flex";
 import type { FamilyProfile } from "@/types";
+import type { AnchoredFormState } from "@/lib/saved-trips/types";
 import { CityAutocomplete } from "./CityAutocomplete";
 import { StopList, type PlanStop } from "./StopList";
 
@@ -80,10 +77,6 @@ function stopToOpportunity(stop: PlanStop, index: number): Opportunity | null {
   const geo = geocodeCity(stop.city);
   if (!geo) return null;
   const nights = Math.max(0, stop.nights);
-  // Une "étape" utilisateur = opportunity forcée (score 1) pour que le solveur
-  // la retienne. La durée modélise approximativement "nights" — le solveur
-  // n'a pas de concept natif de nuitées d'opportunity, mais une durée élevée
-  // pousse à y consacrer une vraie journée.
   const durationMin = Math.max(120, nights * 240 + 120);
   return {
     id: `user-stop-${index}-${slug(stop.city)}`,
@@ -103,37 +96,38 @@ function stopToOpportunity(stop: PlanStop, index: number): Opportunity | null {
 }
 
 interface AnchoredTripFormProps {
+  value: AnchoredFormState;
+  onChange: (next: AnchoredFormState) => void;
   onResult: (result: {
     candidates: TripCandidate[];
     dateOptions: DateOption[];
   }) => void;
+  hasExisting: boolean;
 }
 
-export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
-  const [anchorTitle, setAnchorTitle] = useState("");
-  const [anchorCity, setAnchorCity] = useState("");
-  const [anchorStartDate, setAnchorStartDate] = useState("");
-  const [anchorStartTime, setAnchorStartTime] = useState("16:00");
-  const [anchorEndTime, setAnchorEndTime] = useState("23:30");
-  const [originCity, setOriginCity] = useState("");
-  const [earliestStart, setEarliestStart] = useState("");
-  const [latestEnd, setLatestEnd] = useState("");
-  const [minNights, setMinNights] = useState(7);
-  const [maxNights, setMaxNights] = useState(10);
-  const [stops, setStops] = useState<PlanStop[]>([]);
+export function AnchoredTripForm({
+  value,
+  onChange,
+  onResult,
+  hasExisting,
+}: AnchoredTripFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function patch(p: Partial<AnchoredFormState>) {
+    onChange({ ...value, ...p });
+  }
+
   const ready =
-    anchorTitle.trim().length > 0 &&
-    anchorCity.trim().length > 0 &&
-    anchorStartDate.length === 10 &&
-    originCity.trim().length > 0 &&
-    earliestStart.length === 10 &&
-    latestEnd.length === 10 &&
-    earliestStart <= latestEnd &&
-    minNights > 0 &&
-    maxNights >= minNights;
+    value.anchorTitle.trim().length > 0 &&
+    value.anchorCity.trim().length > 0 &&
+    value.anchorStartDate.length === 10 &&
+    value.originCity.trim().length > 0 &&
+    value.earliestStart.length === 10 &&
+    value.latestEnd.length === 10 &&
+    value.earliestStart <= value.latestEnd &&
+    value.minNights > 0 &&
+    value.maxNights >= value.minNights;
 
   async function compose(e: React.FormEvent) {
     e.preventDefault();
@@ -141,28 +135,28 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
     setLoading(true);
     setError(null);
     try {
-      const anchorGeo = geocodeCity(anchorCity);
-      if (!anchorGeo) throw new Error(`Ville inconnue pour l'ancre : ${anchorCity}`);
-      const originGeo = geocodeCity(originCity);
-      if (!originGeo) throw new Error(`Ville inconnue pour le départ : ${originCity}`);
+      const anchorGeo = geocodeCity(value.anchorCity);
+      if (!anchorGeo) throw new Error(`Ville inconnue pour l'ancre : ${value.anchorCity}`);
+      const originGeo = geocodeCity(value.originCity);
+      if (!originGeo) throw new Error(`Ville inconnue pour le départ : ${value.originCity}`);
 
       const profile = await loadActiveProfile();
 
       const anchor: Anchor = {
-        id: `user-anchor-${slug(anchorTitle)}`,
+        id: `user-anchor-${slug(value.anchorTitle)}`,
         kind: "event",
-        title: anchorTitle.trim(),
+        title: value.anchorTitle.trim(),
         location: { lat: anchorGeo.lat, lng: anchorGeo.lng },
-        start: `${anchorStartDate}T${anchorStartTime}:00`,
-        end: `${anchorStartDate}T${anchorEndTime}:00`,
+        start: `${value.anchorStartDate}T${value.anchorStartTime}:00`,
+        end: `${value.anchorStartDate}T${value.anchorEndTime}:00`,
         source: "saisie utilisateur",
         sourceStatus: "verified",
       };
 
-      const opportunities: Opportunity[] = stops
+      const opportunities: Opportunity[] = value.stops
         .map((s, i) => stopToOpportunity(s, i))
         .filter((o): o is Opportunity => o !== null);
-      const unknownStops = stops
+      const unknownStops = value.stops
         .filter((s) => s.city.trim().length > 0)
         .filter((s) => !geocodeCity(s.city));
 
@@ -172,10 +166,10 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
         people: [],
         window: {
           origin: { lat: originGeo.lat, lng: originGeo.lng },
-          earliestStart,
-          latestEnd,
-          minNights,
-          maxNights,
+          earliestStart: value.earliestStart,
+          latestEnd: value.latestEnd,
+          minNights: value.minNights,
+          maxNights: value.maxNights,
         },
         constraints: constraintsFromProfile(profile),
       };
@@ -240,8 +234,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
           <input
             type="text"
             required
-            value={anchorTitle}
-            onChange={(e) => setAnchorTitle(e.target.value)}
+            value={value.anchorTitle}
+            onChange={(e) => patch({ anchorTitle: e.target.value })}
             placeholder="ex. Mariage de Marie"
             className="h-11 px-3 rounded-lg w-full text-sm"
             style={inputStyle}
@@ -249,8 +243,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
         </label>
         <CityAutocomplete
           label="Ville"
-          value={anchorCity}
-          onChange={setAnchorCity}
+          value={value.anchorCity}
+          onChange={(v) => patch({ anchorCity: v })}
           placeholder="ex. Marseille"
           required
         />
@@ -265,8 +259,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
             <input
               type="date"
               required
-              value={anchorStartDate}
-              onChange={(e) => setAnchorStartDate(e.target.value)}
+              value={value.anchorStartDate}
+              onChange={(e) => patch({ anchorStartDate: e.target.value })}
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
             />
@@ -281,8 +275,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
             <input
               type="time"
               required
-              value={anchorStartTime}
-              onChange={(e) => setAnchorStartTime(e.target.value)}
+              value={value.anchorStartTime}
+              onChange={(e) => patch({ anchorStartTime: e.target.value })}
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
             />
@@ -297,8 +291,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
             <input
               type="time"
               required
-              value={anchorEndTime}
-              onChange={(e) => setAnchorEndTime(e.target.value)}
+              value={value.anchorEndTime}
+              onChange={(e) => patch({ anchorEndTime: e.target.value })}
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
             />
@@ -308,8 +302,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
 
       <CityAutocomplete
         label="Point de départ (domicile)"
-        value={originCity}
-        onChange={setOriginCity}
+        value={value.originCity}
+        onChange={(v) => patch({ originCity: v })}
         placeholder="ex. Paris"
         required
       />
@@ -332,8 +326,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
             <input
               type="date"
               required
-              value={earliestStart}
-              onChange={(e) => setEarliestStart(e.target.value)}
+              value={value.earliestStart}
+              onChange={(e) => patch({ earliestStart: e.target.value })}
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
             />
@@ -348,9 +342,9 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
             <input
               type="date"
               required
-              value={latestEnd}
-              onChange={(e) => setLatestEnd(e.target.value)}
-              min={earliestStart || undefined}
+              value={value.latestEnd}
+              onChange={(e) => patch({ latestEnd: e.target.value })}
+              min={value.earliestStart || undefined}
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
             />
@@ -368,9 +362,9 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
               type="number"
               min={1}
               max={60}
-              value={minNights}
+              value={value.minNights}
               onChange={(e) =>
-                setMinNights(Math.max(1, Number(e.target.value) || 1))
+                patch({ minNights: Math.max(1, Number(e.target.value) || 1) })
               }
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
@@ -387,9 +381,9 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
               type="number"
               min={1}
               max={60}
-              value={maxNights}
+              value={value.maxNights}
               onChange={(e) =>
-                setMaxNights(Math.max(1, Number(e.target.value) || 1))
+                patch({ maxNights: Math.max(1, Number(e.target.value) || 1) })
               }
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
@@ -412,8 +406,8 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
           Optionnel. Chaque étape sera prise en compte par le solveur ; une date fixée la place sur ce jour précis.
         </p>
         <StopList
-          stops={stops}
-          onChange={setStops}
+          stops={value.stops}
+          onChange={(stops) => patch({ stops })}
           addLabel="Ajouter une étape"
           emptyHint="Aucune étape — le solveur composera librement le chemin entre votre domicile et l'ancre."
         />
@@ -432,7 +426,7 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
         disabled={loading || !ready}
         className="w-full"
       >
-        Composer mes voyages
+        {hasExisting ? "Recomposer mes voyages" : "Composer mes voyages"}
       </Button>
 
       {error && (
@@ -446,4 +440,22 @@ export function AnchoredTripForm({ onResult }: AnchoredTripFormProps) {
       )}
     </form>
   );
+}
+
+/** State initial vierge pour un nouveau voyage avec ancre. */
+export function emptyAnchoredFormState(): AnchoredFormState {
+  return {
+    mode: "anchored",
+    anchorTitle: "",
+    anchorCity: "",
+    anchorStartDate: "",
+    anchorStartTime: "16:00",
+    anchorEndTime: "23:30",
+    originCity: "",
+    earliestStart: "",
+    latestEnd: "",
+    minNights: 7,
+    maxNights: 10,
+    stops: [],
+  };
 }

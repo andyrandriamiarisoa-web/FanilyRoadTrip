@@ -1,8 +1,9 @@
 /**
  * `PlannedTripForm` — formulaire du **Mode A — Voyage planifié**.
  *
- * Saisie : point de départ + destination + dates départ/retour + étapes à
- * respecter (StopList) + description libre. Appelle `/api/agents/itinerary`
+ * Le state du formulaire (point de départ, destination, dates, étapes,
+ * envies) est piloté depuis `PlanWizard` pour pouvoir le persister (voyage
+ * sauvegardé) et le restaurer à la réouverture. Appelle `/api/agents/itinerary`
  * (Claude en LIVE, mock-first sans clé) ; les étapes structurées sont
  * sérialisées dans la description pour que le LLM les prenne en compte.
  */
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { loadActiveProfile } from "@/lib/db";
 import { summarizeProfile } from "@/lib/profile/profile";
 import type { AiItineraryDraft } from "@/lib/agents/itinerary-types";
+import type { PlannedFormState } from "@/lib/saved-trips/types";
 import { CityAutocomplete } from "./CityAutocomplete";
 import { StopList, type PlanStop } from "./StopList";
 
@@ -23,7 +25,11 @@ const inputStyle: React.CSSProperties = {
 };
 
 interface PlannedTripFormProps {
+  value: PlannedFormState;
+  onChange: (next: PlannedFormState) => void;
   onDraft: (draft: AiItineraryDraft, source: "ai" | "mock") => void;
+  /** True quand un voyage est déjà ouvert (modifie le libellé du bouton). */
+  hasExisting: boolean;
 }
 
 function formatStopsForPrompt(stops: PlanStop[]): string {
@@ -39,22 +45,25 @@ function formatStopsForPrompt(stops: PlanStop[]): string {
   return `\n\nÉtapes à respecter :\n${lines.join("\n")}`;
 }
 
-export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [stops, setStops] = useState<PlanStop[]>([]);
-  const [desires, setDesires] = useState("");
+export function PlannedTripForm({
+  value,
+  onChange,
+  onDraft,
+  hasExisting,
+}: PlannedTripFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function patch(p: Partial<PlannedFormState>) {
+    onChange({ ...value, ...p });
+  }
+
   const ready =
-    origin.trim().length > 0 &&
-    destination.trim().length > 0 &&
-    dateFrom.length === 10 &&
-    dateTo.length === 10 &&
-    dateFrom <= dateTo;
+    value.origin.trim().length > 0 &&
+    value.destination.trim().length > 0 &&
+    value.dateFrom.length === 10 &&
+    value.dateTo.length === 10 &&
+    value.dateFrom <= value.dateTo;
 
   async function generate(e: React.FormEvent) {
     e.preventDefault();
@@ -66,11 +75,11 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
       const constraints = summarizeProfile(profile).map(
         (l) => `${l.label} : ${l.value} — ${l.note}`,
       );
-      const prefix = `Voyage de ${origin.trim()} à ${destination.trim()}, du ${dateFrom} au ${dateTo}.`;
-      const desiresClean = desires.trim();
+      const prefix = `Voyage de ${value.origin.trim()} à ${value.destination.trim()}, du ${value.dateFrom} au ${value.dateTo}.`;
+      const desiresClean = value.desires.trim();
       const description =
         prefix +
-        formatStopsForPrompt(stops) +
+        formatStopsForPrompt(value.stops) +
         (desiresClean ? `\n\nEnvies : ${desiresClean}` : "");
 
       const res = await fetch("/api/agents/itinerary", {
@@ -78,9 +87,9 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description,
-          destination: destination.trim(),
-          dateFrom,
-          dateTo,
+          destination: value.destination.trim(),
+          dateFrom: value.dateFrom,
+          dateTo: value.dateTo,
           constraints,
           workDays: profile.work.workDays,
         }),
@@ -115,15 +124,15 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <CityAutocomplete
           label="Point de départ"
-          value={origin}
-          onChange={setOrigin}
+          value={value.origin}
+          onChange={(v) => patch({ origin: v })}
           placeholder="ex. Paris"
           required
         />
         <CityAutocomplete
           label="Destination"
-          value={destination}
-          onChange={setDestination}
+          value={value.destination}
+          onChange={(v) => patch({ destination: v })}
           placeholder="ex. Marseille"
           required
         />
@@ -140,8 +149,8 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
           <input
             type="date"
             required
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            value={value.dateFrom}
+            onChange={(e) => patch({ dateFrom: e.target.value })}
             className="h-11 px-3 rounded-lg w-full text-sm"
             style={inputStyle}
           />
@@ -156,9 +165,9 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
           <input
             type="date"
             required
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            min={dateFrom || undefined}
+            value={value.dateTo}
+            onChange={(e) => patch({ dateTo: e.target.value })}
+            min={value.dateFrom || undefined}
             className="h-11 px-3 rounded-lg w-full text-sm"
             style={inputStyle}
           />
@@ -179,8 +188,8 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
           Optionnel. Chaque étape peut avoir une date fixée ou être laissée à l’algorithme.
         </p>
         <StopList
-          stops={stops}
-          onChange={setStops}
+          stops={value.stops}
+          onChange={(stops) => patch({ stops })}
           addLabel="Ajouter une étape"
           emptyHint="Aucune étape pour l'instant — l'algorithme proposera lui-même le découpage du trajet."
         />
@@ -194,8 +203,8 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
           Envies (optionnel)
         </span>
         <textarea
-          value={desires}
-          onChange={(e) => setDesires(e.target.value)}
+          value={value.desires}
+          onChange={(e) => patch({ desires: e.target.value })}
           rows={3}
           placeholder="ex. étapes culturelles, nature, télétravail en semaine…"
           className="p-3 rounded-lg w-full text-sm resize-y"
@@ -210,7 +219,7 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
         disabled={loading || !ready}
         className="w-full"
       >
-        Générer l’itinéraire
+        {hasExisting ? "Re-générer l’itinéraire" : "Générer l’itinéraire"}
       </Button>
 
       {error && (
@@ -224,4 +233,17 @@ export function PlannedTripForm({ onDraft }: PlannedTripFormProps) {
       )}
     </form>
   );
+}
+
+/** State initial vierge pour un nouveau voyage planifié. */
+export function emptyPlannedFormState(): PlannedFormState {
+  return {
+    mode: "planned",
+    origin: "",
+    destination: "",
+    dateFrom: "",
+    dateTo: "",
+    stops: [],
+    desires: "",
+  };
 }

@@ -36,6 +36,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | S6 | **Récit IA** (barde, pas inventeur — prompt + repli gabarit gratuit, aucun fait inventé) | ✅ |
 | S7 | **Durcissement du solveur** (sac à dos 0/1 exact + layout aligné sur la date d'ancre — pur TS, déployable) | ✅ |
 | U1 | **Refonte `/plan` mode production** (Mode A planifié / Mode B avec ancre, formulaires propres, voyage de référence hardcodé retiré) | ✅ |
+| V1 | **Voyages sauvegardés & refresh dispos hôtel** (store IndexedDB v8 `savedTrips`+`lodgingSnapshots`, page `/voyages`, édition d'un voyage existant, bouton « Envoyer au carnet », bouton « Rafraîchir les dispos hôtel ») | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :
@@ -57,6 +58,29 @@ DraftPreview, CandidatesPreview). Saisie ville avec suggestions natives
 `/plan` (Mode B). Composants supprimés : `PlanGenerator`,
 `AiItineraryGenerator`, `ChargePlanner`, `Composer`, `PeopleEditor` ;
 données supprimées : `voyage-reference.ts`/`json`.
+
+**Voyages sauvegardés & refresh dispos hôtel (V1)** : un voyage n'est plus
+une session éphémère — la page `/plan` persiste un `SavedTrip` à la demande
+(« Enregistrer le brouillon »), restaurable à la réouverture (param query
+`?savedTripId=…` ou voyage actif singleton). Trois statuts : `draft` (en
+cours), `validated` (promu au carnet, un `TripPlan` historique a été généré
+via le mock-orchestrator côté serveur — bouton « Envoyer au carnet »),
+`archived`. La page `/voyages` (`SavedTripsList`) liste les voyages avec
+filtre par statut, ouvre/renomme/archive/supprime. Édition complète : on
+peut changer les dates de départ/retour ou les étapes et re-générer
+(boutons libellés « Re-générer l'itinéraire » / « Recomposer mes voyages »
+quand un voyage est déjà ouvert). Côté `/carnet`, un bouton « **Rafraîchir
+les dispos hôtel** » itère sur les nuits du `TripPlan` et appelle
+`/api/lodging/availability` pour chacune (mock par défaut, LiteAPI ou
+Hotelbeds sandbox en live) — résultats persistés dans le store
+`lodgingSnapshots` (clé `${savedTripId}-${date}-${slugCity}`), affichés à
+côté du `LodgingPanel` avec source + fraîcheur (`readAt`). Indicateur de
+fraîcheur >24h dans `/voyages` et bandeau dans `/carnet`. Stores Dexie v8 :
+`savedTrips`, `lodgingSnapshots`, `activeSavedTrip` (singleton). Helpers
+purs testés : `formStateToTripRequest` (Mode A/B → `TripRequest`, géocodage
+seed sans inventer de coords), `refreshLodgingForPlan` (fetch injecté),
+`snapshotAgeHours`. Anti-pattern #3 préservé partout : la source et le
+`readAt` sont obligatoirement visibles.
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`

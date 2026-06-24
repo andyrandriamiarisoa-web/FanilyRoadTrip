@@ -12,6 +12,7 @@ import type { Expense, ExpenseCategory } from "@/lib/budget/budget";
 import type { Reservation } from "@/lib/reservations/reservation-types";
 import type { Person } from "@/lib/synthesis/types";
 import { defaultPoll, type Poll } from "@/lib/collab/poll";
+import type { SavedTrip, LodgingSnapshot } from "@/lib/saved-trips/types";
 
 /** Identifiant du profil foyer actif (un seul foyer pour l'instant). */
 export const ACTIVE_PROFILE_ID = "famille-default";
@@ -67,6 +68,18 @@ interface PollStateRow extends Poll {
 
 const POLL_STATE_ID = "active";
 
+/**
+ * Singleton « voyage actif » : id du dernier `SavedTrip` ouvert dans /plan.
+ * Permet de reprendre le formulaire et le résultat au prochain chargement.
+ */
+interface ActiveSavedTripRow {
+  id: string;            // toujours "active"
+  savedTripId: string;
+  setAt: string;
+}
+
+const ACTIVE_SAVED_TRIP_ID = "active";
+
 const DEFAULT_BUDGET_SETTINGS: Omit<BudgetSettingsRow, "id"> = {
   travelers: ["Parent 1", "Parent 2"],
   budgets: { lodging: 1500, charging: 150, food: 600, activities: 400, tolls: 120, misc: 200 },
@@ -83,6 +96,9 @@ export class OdysseeDatabase extends Dexie {
   reservations!: EntityTable<Reservation, "id">;
   pollState!: EntityTable<PollStateRow, "id">;
   people!: EntityTable<Person, "id">;
+  savedTrips!: EntityTable<SavedTrip, "id">;
+  lodgingSnapshots!: EntityTable<LodgingSnapshot, "id">;
+  activeSavedTrip!: EntityTable<ActiveSavedTripRow, "id">;
 
   constructor() {
     super("odyssee-db");
@@ -115,6 +131,13 @@ export class OdysseeDatabase extends Dexie {
     // v7 : graphe social géolocalisé (S5) — personnes-ancres, 100 % local.
     this.version(7).stores({
       people: "id, title",
+    });
+    // v8 : voyages sauvegardés (brouillons/validés/archivés), snapshots de
+    // disponibilité hôtel rafraîchissables, et pointeur « voyage actif ».
+    this.version(8).stores({
+      savedTrips: "id, status, mode, updatedAt",
+      lodgingSnapshots: "id, savedTripId, date",
+      activeSavedTrip: "id",
     });
   }
 }
@@ -383,4 +406,84 @@ export async function addPerson(person: Person): Promise<void> {
 export async function deletePerson(id: string): Promise<void> {
   const db = getDb();
   await db.people.delete(id);
+}
+
+// ---------------------------------------------------------------------------
+// Voyages sauvegardés (v8) — brouillons, validés, archivés, et leurs
+// snapshots de disponibilité hôtel rafraîchissables.
+// ---------------------------------------------------------------------------
+
+/** Liste tous les voyages sauvegardés (récents d'abord). */
+export async function listSavedTrips(): Promise<SavedTrip[]> {
+  const db = getDb();
+  const all = await db.savedTrips.orderBy("updatedAt").reverse().toArray();
+  return all;
+}
+
+export async function getSavedTrip(id: string): Promise<SavedTrip | null> {
+  const db = getDb();
+  const trip = await db.savedTrips.get(id);
+  return trip ?? null;
+}
+
+/** Crée ou met à jour un voyage (réécrit `updatedAt`). */
+export async function putSavedTrip(trip: SavedTrip): Promise<SavedTrip> {
+  const db = getDb();
+  const next: SavedTrip = { ...trip, updatedAt: new Date().toISOString() };
+  await db.savedTrips.put(next);
+  return next;
+}
+
+/** Supprime un voyage et tous ses snapshots de dispos hôtel. */
+export async function deleteSavedTrip(id: string): Promise<void> {
+  const db = getDb();
+  await db.transaction("rw", db.savedTrips, db.lodgingSnapshots, db.activeSavedTrip, async () => {
+    await db.savedTrips.delete(id);
+    const snaps = await db.lodgingSnapshots.where("savedTripId").equals(id).toArray();
+    await Promise.all(snaps.map((s) => db.lodgingSnapshots.delete(s.id)));
+    const active = await db.activeSavedTrip.get(ACTIVE_SAVED_TRIP_ID);
+    if (active?.savedTripId === id) {
+      await db.activeSavedTrip.delete(ACTIVE_SAVED_TRIP_ID);
+    }
+  });
+}
+
+export async function getActiveSavedTripId(): Promise<string | null> {
+  const db = getDb();
+  const row = await db.activeSavedTrip.get(ACTIVE_SAVED_TRIP_ID);
+  return row?.savedTripId ?? null;
+}
+
+export async function setActiveSavedTripId(savedTripId: string | null): Promise<void> {
+  const db = getDb();
+  if (savedTripId === null) {
+    await db.activeSavedTrip.delete(ACTIVE_SAVED_TRIP_ID);
+    return;
+  }
+  await db.activeSavedTrip.put({
+    id: ACTIVE_SAVED_TRIP_ID,
+    savedTripId,
+    setAt: new Date().toISOString(),
+  });
+}
+
+// --- Snapshots de disponibilité hôtel ---------------------------------------
+
+/** Liste les snapshots d'un voyage (un par date+ville). */
+export async function listLodgingSnapshots(savedTripId: string): Promise<LodgingSnapshot[]> {
+  const db = getDb();
+  return db.lodgingSnapshots.where("savedTripId").equals(savedTripId).sortBy("date");
+}
+
+/** Remplace ou crée un snapshot (clé composite savedTripId+date). */
+export async function putLodgingSnapshot(snapshot: LodgingSnapshot): Promise<void> {
+  const db = getDb();
+  await db.lodgingSnapshots.put(snapshot);
+}
+
+/** Supprime tous les snapshots d'un voyage (utile avant un refresh complet). */
+export async function clearLodgingSnapshots(savedTripId: string): Promise<void> {
+  const db = getDb();
+  const snaps = await db.lodgingSnapshots.where("savedTripId").equals(savedTripId).toArray();
+  await Promise.all(snaps.map((s) => db.lodgingSnapshots.delete(s.id)));
 }

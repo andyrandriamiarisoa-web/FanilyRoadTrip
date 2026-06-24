@@ -131,7 +131,17 @@ interface NavItem {
   matchPrefix: string;
 }
 
+function IconVoyages() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M18 17l3-3-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const SECONDARY_ITEMS: NavItem[] = [
+  { href: "/voyages",       label: "Mes voyages",    icon: <IconVoyages />,       matchPrefix: "/voyages" },
   { href: "/lieux",         label: "Lieux",          icon: <IconLieux />,         matchPrefix: "/lieux" },
   { href: "/hebergements",  label: "Hébergements",   icon: <IconHebergements />,  matchPrefix: "/hebergements" },
   { href: "/bagages",       label: "Bagages",        icon: <IconBagages />,       matchPrefix: "/bagages" },

@@ -1,7 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getLatestTrip, getLodgingSelections, saveLodgingSelection, listReservations, loadActiveProfile, clearCarnet } from "@/lib/db";
+import {
+  getLatestTrip,
+  getLodgingSelections,
+  saveLodgingSelection,
+  listReservations,
+  loadActiveProfile,
+  clearCarnet,
+  listSavedTrips,
+  putLodgingSnapshot,
+  clearLodgingSnapshots,
+  listLodgingSnapshots,
+} from "@/lib/db";
+import {
+  refreshLodgingForPlan,
+  snapshotAgeHours,
+} from "@/lib/saved-trips/refresh-lodging";
+import type { LodgingSnapshot } from "@/lib/saved-trips/types";
 import type { TripPlan, DayPlan, FamilyProfile } from "@/types";
 import type { Reservation } from "@/lib/reservations/reservation-types";
 import { WorkationTracks } from "@/components/workation/WorkationTracks";
@@ -29,6 +45,11 @@ export function RoadbookClient() {
   const [exportMsg, setExportMsg] = useState<string | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [profile, setProfile] = useState<FamilyProfile | null>(null);
+  /** Voyage sauvegardé promu vers ce TripPlan (sert au refresh dispos). */
+  const [savedTripId, setSavedTripId] = useState<string | null>(null);
+  /** Snapshots de dispos hôtel par date (clé = date du jour). */
+  const [snapshotsByDate, setSnapshotsByDate] = useState<Record<string, LodgingSnapshot>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -40,6 +61,18 @@ export function RoadbookClient() {
         if (trip) {
           const sel = await getLodgingSelections(trip.id);
           setSelections(sel);
+          // Cherche le SavedTrip promu sur ce TripPlan (le plus récent).
+          const saved = await listSavedTrips();
+          const linked = saved.find((s) => s.promotedTripPlanId === trip.id);
+          if (mounted && linked) {
+            setSavedTripId(linked.id);
+            const snaps = await listLodgingSnapshots(linked.id);
+            if (mounted) {
+              setSnapshotsByDate(
+                Object.fromEntries(snaps.map((s) => [s.date, s])),
+              );
+            }
+          }
         }
         const res = await listReservations();
         if (mounted) setReservations(res);
@@ -89,6 +122,34 @@ export function RoadbookClient() {
     setTimeout(() => setExportMsg(null), 3000);
   }
 
+  async function handleRefreshLodging() {
+    if (!plan) return;
+    if (!savedTripId) {
+      setExportMsg("Voyage non associé à une sauvegarde — rouvrez-le depuis /voyages.");
+      setTimeout(() => setExportMsg(null), 4000);
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await clearLodgingSnapshots(savedTripId);
+      const outcome = await refreshLodgingForPlan(plan, { savedTripId });
+      await Promise.all(outcome.snapshots.map((s) => putLodgingSnapshot(s)));
+      setSnapshotsByDate(
+        Object.fromEntries(outcome.snapshots.map((s) => [s.date, s])),
+      );
+      if (outcome.errors.length === 0) {
+        setExportMsg(`${outcome.snapshots.length} nuit(s) rafraîchie(s).`);
+      } else {
+        setExportMsg(
+          `${outcome.snapshots.length} OK · ${outcome.errors.length} erreur(s).`,
+        );
+      }
+      setTimeout(() => setExportMsg(null), 3000);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   async function handleClear() {
     if (!plan) return;
     const ok = window.confirm(
@@ -98,6 +159,8 @@ export function RoadbookClient() {
     await clearCarnet();
     setPlan(null);
     setSelections({});
+    setSnapshotsByDate({});
+    setSavedTripId(null);
   }
 
   if (loading) {
@@ -165,6 +228,17 @@ export function RoadbookClient() {
         <Button variant="ghost" size="sm" onClick={() => window.print()}>
           Imprimer
         </Button>
+        {savedTripId && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRefreshLodging}
+            loading={refreshing}
+            disabled={refreshing}
+          >
+            Rafraîchir les dispos hôtel
+          </Button>
+        )}
         <Button variant="ghost" size="sm" onClick={handleClear}>
           Effacer le carnet
         </Button>
@@ -174,6 +248,9 @@ export function RoadbookClient() {
           </span>
         )}
       </div>
+
+      <LiveLodgingFreshness snapshots={snapshotsByDate} savedTripId={savedTripId} />
+
 
       {/* Budget summary */}
       {Object.keys(selections).length > 0 && (
@@ -215,10 +292,55 @@ export function RoadbookClient() {
             onSelectLodging={(id) => selectLodging(day.date, id)}
             reservations={reservationsOnDate(reservations, day.date)}
             profile={profile}
+            lodgingSnapshot={snapshotsByDate[day.date]}
           />
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Bandeau condensé indiquant l'âge des snapshots de dispos hôtel.
+ * Suggère de rafraîchir au-delà de 24h.
+ */
+function LiveLodgingFreshness({
+  snapshots,
+  savedTripId,
+}: {
+  snapshots: Record<string, LodgingSnapshot>;
+  savedTripId: string | null;
+}) {
+  if (!savedTripId) return null;
+  const entries = Object.values(snapshots);
+  if (entries.length === 0) {
+    return (
+      <p
+        className="text-xs no-print"
+        style={{ color: "var(--text-muted)" }}
+      >
+        Dispos hôtel : jamais rafraîchies pour ce voyage. Utilisez « Rafraîchir les dispos hôtel » pour interroger le fournisseur.
+      </p>
+    );
+  }
+  const ages = entries
+    .map((s) => snapshotAgeHours(s))
+    .filter((n): n is number => n !== null);
+  const max = ages.length > 0 ? Math.max(...ages) : 0;
+  const stale = max > 24;
+  const ageLabel =
+    max < 1 ? "à l'instant" : max < 24 ? `il y a ${Math.round(max)} h` : `il y a ${Math.round(max / 24)} j`;
+  const source =
+    entries.length > 0 ? entries[0].result.sourceName : "mock";
+  return (
+    <p
+      className="text-xs no-print"
+      style={{ color: stale ? "var(--accent-warning)" : "var(--text-secondary)" }}
+    >
+      Dispos hôtel ({entries.length} nuit{entries.length > 1 ? "s" : ""}) ·
+      source : {source} · {ageLabel}
+      {stale ? " — pense à rafraîchir" : ""}
+    </p>
   );
 }
 
@@ -257,6 +379,7 @@ function DayCard({
   onSelectLodging,
   reservations,
   profile,
+  lodgingSnapshot,
 }: {
   day: DayPlan;
   selectedLodgingId?: string;
@@ -265,6 +388,7 @@ function DayCard({
   onSelectLodging: (id: string) => void;
   reservations: Reservation[];
   profile: FamilyProfile | null;
+  lodgingSnapshot?: LodgingSnapshot;
 }) {
   const date = new Date(day.date);
   const dayStr = date.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
@@ -385,7 +509,7 @@ function DayCard({
           {/* Réservations importées (M8) */}
           {reservations.length > 0 && <ReservationsForDay reservations={reservations} />}
 
-          {/* Lodging panel */}
+          {/* Lodging panel (hébergement seed/estimated du orchestrator) */}
           {day.lodging && (
             <LodgingPanel
               day={day}
@@ -393,6 +517,9 @@ function DayCard({
               onSelect={onSelectLodging}
             />
           )}
+
+          {/* Dispos hôtel temps réel (rafraîchies à la demande) */}
+          {lodgingSnapshot && <LiveLodgingOffers snapshot={lodgingSnapshot} />}
 
           {/* Events */}
           {day.events && day.events.length > 0 && (
@@ -441,4 +568,97 @@ function connectivityColor(quality: string): string {
     poor: "var(--accent-danger)",
   };
   return map[quality] ?? "var(--text-secondary)";
+}
+
+/**
+ * Volet « Dispos temps réel » dans une journée :
+ * - liste compacte des offres du snapshot (3 premières + indicateur "+N")
+ * - source affichée (mock / LiteAPI / Hotelbeds Test)
+ * - fraîcheur explicite (`readAt` formaté)
+ * - aucune action de réservation
+ */
+function LiveLodgingOffers({ snapshot }: { snapshot: LodgingSnapshot }) {
+  // Offres typées de façon défensive : on tolère des shapes différents selon
+  // le fournisseur (mock vs LiteAPI vs Hotelbeds) — on lit uniquement les
+  // champs minimums utiles à l'affichage.
+  type RawOffer = {
+    id?: string;
+    name?: string;
+    available?: boolean;
+    priceTotalCents?: number | null;
+    sourceName?: string;
+  };
+  const offers = (snapshot.result.offers as RawOffer[]) ?? [];
+  const visible = offers.slice(0, 3);
+  const remaining = Math.max(0, offers.length - visible.length);
+
+  const readAt = new Date(snapshot.readAt).toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <div
+      className="rounded-lg p-3 space-y-2"
+      style={{
+        background: "var(--bg-base)",
+        border: "1px solid var(--border-default)",
+      }}
+    >
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          Dispos hôtel — temps réel
+        </p>
+        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          {snapshot.result.sourceName} · {readAt}
+        </span>
+      </div>
+
+      {offers.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          Aucune offre renvoyée pour cette nuit.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {visible.map((o, i) => (
+            <li key={o.id ?? i} className="flex items-center justify-between gap-2 text-sm">
+              <span style={{ color: "var(--text-primary)" }}>
+                {o.name ?? "Hôtel"}
+              </span>
+              <span
+                className="text-xs font-medium shrink-0"
+                style={{
+                  color: o.available
+                    ? "var(--accent-amber)"
+                    : "var(--text-muted)",
+                }}
+              >
+                {o.available && o.priceTotalCents != null
+                  ? `${Math.round((o.priceTotalCents ?? 0) / 100)} €`
+                  : "Complet"}
+              </span>
+            </li>
+          ))}
+          {remaining > 0 && (
+            <li
+              className="text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              +{remaining} autre{remaining > 1 ? "s" : ""} offre{remaining > 1 ? "s" : ""}
+            </li>
+          )}
+        </ul>
+      )}
+
+      {snapshot.result.notes.length > 0 && (
+        <ul className="text-xs space-y-0.5" style={{ color: "var(--text-muted)" }}>
+          {snapshot.result.notes.map((n, i) => (
+            <li key={i}>— {n}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
