@@ -5,17 +5,26 @@ import { Button } from "@/components/ui/Button";
 import { SourceBadge } from "@/components/ui/Badge";
 import type { AvailabilityResult, HotelOffer } from "@/lib/lodging/availability/types";
 
-/** Villes d'étape (centre approximatif) — alignées sur le seed POI. */
+/** Villes proposées en raccourci — alignées sur le seed POI. */
 const CITIES: { label: string; lat: number; lng: number }[] = [
-  { label: "Dijon", lat: 47.32, lng: 5.04 },
-  { label: "Beaune", lat: 47.02, lng: 4.84 },
-  { label: "Mâcon", lat: 46.31, lng: 4.83 },
+  { label: "Paris", lat: 48.86, lng: 2.35 },
   { label: "Lyon", lat: 45.75, lng: 4.84 },
-  { label: "Tain-l'Hermitage", lat: 45.07, lng: 4.84 },
-  { label: "Montélimar", lat: 44.56, lng: 4.75 },
   { label: "Marseille", lat: 43.30, lng: 5.37 },
-  { label: "Sens", lat: 48.20, lng: 3.28 },
+  { label: "Bordeaux", lat: 44.84, lng: -0.58 },
+  { label: "Toulouse", lat: 43.60, lng: 1.44 },
+  { label: "Nantes", lat: 47.22, lng: -1.55 },
+  { label: "Strasbourg", lat: 48.58, lng: 7.75 },
+  { label: "Nice", lat: 43.71, lng: 7.26 },
+  { label: "Dijon", lat: 47.32, lng: 5.04 },
+  { label: "Avignon", lat: 43.95, lng: 4.81 },
 ];
+
+/** Renvoie une date ISO (YYYY-MM-DD) à `offsetDays` du jour courant. */
+function isoDateAtOffset(offsetDays: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
 
 function formatEur(cents: number): string {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -33,10 +42,10 @@ function formatFreshness(iso: string): string {
  * sont toujours indiquées ; aucune action de réservation n'est exposée.
  */
 export function LodgingAvailabilitySearch() {
-  // Défauts : Marseille 7–9/08/2026 (cf. critère R5).
-  const [cityLabel, setCityLabel] = useState("Marseille");
-  const [checkIn, setCheckIn] = useState("2026-08-07");
-  const [checkOut, setCheckOut] = useState("2026-08-09");
+  // Défauts neutres : première ville de la liste, J+30 → J+32.
+  const [cityLabel, setCityLabel] = useState(CITIES[0].label);
+  const [checkIn, setCheckIn] = useState(() => isoDateAtOffset(30));
+  const [checkOut, setCheckOut] = useState(() => isoDateAtOffset(32));
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AvailabilityResult | null>(null);
   const [error, setError] = useState<string | null>(null);

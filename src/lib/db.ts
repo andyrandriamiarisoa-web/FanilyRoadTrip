@@ -145,6 +145,19 @@ export async function getTrip(id: string): Promise<TripPlan | null> {
   return trip ?? null;
 }
 
+/**
+ * Purge tout le carnet : plans enregistrés et sélections d'hébergement.
+ * Utile pour repartir d'un état vide depuis l'UI (`/carnet`) — par exemple
+ * pour effacer un ancien voyage généré par une version antérieure de l'app.
+ */
+export async function clearCarnet(): Promise<void> {
+  const db = getDb();
+  await db.transaction("rw", db.tripPlans, db.lodgingSelections, async () => {
+    await db.tripPlans.clear();
+    await db.lodgingSelections.clear();
+  });
+}
+
 export async function saveLodgingSelection(
   tripPlanId: string,
   date: string,

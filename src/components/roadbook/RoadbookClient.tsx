@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getLatestTrip, getLodgingSelections, saveLodgingSelection, listReservations, loadActiveProfile } from "@/lib/db";
+import { getLatestTrip, getLodgingSelections, saveLodgingSelection, listReservations, loadActiveProfile, clearCarnet } from "@/lib/db";
 import type { TripPlan, DayPlan, FamilyProfile } from "@/types";
 import type { Reservation } from "@/lib/reservations/reservation-types";
 import { WorkationTracks } from "@/components/workation/WorkationTracks";
@@ -89,6 +89,17 @@ export function RoadbookClient() {
     setTimeout(() => setExportMsg(null), 3000);
   }
 
+  async function handleClear() {
+    if (!plan) return;
+    const ok = window.confirm(
+      "Effacer le carnet ? Le voyage en cours et les sélections d'hébergement seront supprimés du navigateur. Le Profil Foyer et les autres données (budget, bagages, réservations) sont conservés."
+    );
+    if (!ok) return;
+    await clearCarnet();
+    setPlan(null);
+    setSelections({});
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -112,10 +123,10 @@ export function RoadbookClient() {
         </div>
         <div>
           <h2 className="font-bold text-lg" style={{ color: "var(--text-primary)" }}>
-            Aucun carnet généré
+            Aucun voyage dans le carnet
           </h2>
           <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            Générez votre premier voyage pour voir le carnet de route.
+            Planifiez un voyage pour démarrer.
           </p>
         </div>
         <a
@@ -123,7 +134,7 @@ export function RoadbookClient() {
           className="flex items-center justify-center h-12 px-8 rounded-xl font-semibold"
           style={{ background: "var(--accent-amber)", color: "var(--text-on-amber)" }}
         >
-          Générer un voyage
+          Planifier un voyage
         </a>
       </div>
     );
@@ -153,6 +164,9 @@ export function RoadbookClient() {
         </Button>
         <Button variant="ghost" size="sm" onClick={() => window.print()}>
           Imprimer
+        </Button>
+        <Button variant="ghost" size="sm" onClick={handleClear}>
+          Effacer le carnet
         </Button>
         {exportMsg && (
           <span className="text-xs flex items-center" style={{ color: "var(--accent-success)" }}>
