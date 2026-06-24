@@ -35,6 +35,28 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | S5 | **Graphe social géolocalisé** (personnes-ancres souples, IndexedDB local, ambiance Sociable) | ✅ |
 | S6 | **Récit IA** (barde, pas inventeur — prompt + repli gabarit gratuit, aucun fait inventé) | ✅ |
 | S7 | **Durcissement du solveur** (sac à dos 0/1 exact + layout aligné sur la date d'ancre — pur TS, déployable) | ✅ |
+| U1 | **Refonte `/plan` mode production** (Mode A planifié / Mode B avec ancre, formulaires propres, voyage de référence hardcodé retiré) | ✅ |
+
+**Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
+codé en dur. La page `/plan` propose désormais **deux entrées** :
+
+- **Mode A — Voyage planifié** (`PlannedTripForm`) : point de départ +
+  destination + dates départ/retour + étapes à respecter (chacune avec
+  durée et option « date fixée » ou « libre ») + envies libres. Appelle
+  `/api/agents/itinerary` (Claude en LIVE, brouillon mock-first sinon).
+- **Mode B — Voyage avec ancre** (`AnchoredTripForm`) : événement à date
+  et lieu fixes + fenêtre de voyage (min/max nuits) + point de départ +
+  étapes en chemin (mêmes options que mode A). Construit un
+  `SynthesisRequest` complet (constraints dérivées du Profil Foyer) et
+  appelle `/api/synthesis` (solveur déterministe S1–S7).
+
+Composants : `src/components/plan/` (PlanWizard, ModeSelector,
+PlannedTripForm, AnchoredTripForm, StopList, CityAutocomplete,
+DraftPreview, CandidatesPreview). Saisie ville avec suggestions natives
+`<datalist>` depuis `FRENCH_CITIES`. `/composer` redirige désormais vers
+`/plan` (Mode B). Composants supprimés : `PlanGenerator`,
+`AiItineraryGenerator`, `ChargePlanner`, `Composer`, `PeopleEditor` ;
+données supprimées : `voyage-reference.ts`/`json`.
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
@@ -256,9 +278,9 @@ opportunités classées sans exclure. **S5** graphe social local
 Sociable). **S6** récit IA *barde, pas inventeur* (`narrative.ts` — prompt +
 repli gabarit gratuit, n'expose que les faits du JSON validé) ; route
 `/api/synthesis/narrative` (Claude `claude-sonnet-4-6` en live, repli gabarit
-sans clé) + bouton « Enrichir le récit (IA) » dans `/composer`. API
-`/api/synthesis` ; UI `/composer` (+ `PeopleEditor`). Mock-first, validé Zod
-(`schemas.ts`), fixtures `src/data/synthesis-fixtures.ts`.
+sans clé) + bouton « Enrichir le récit (IA) » dans le Mode B de `/plan`. API
+`/api/synthesis`. Mock-first, validé Zod (`schemas.ts`), fixtures
+`src/data/synthesis-fixtures.ts`.
 
 **Durcissement du solveur (S7)** : `src/lib/synthesis/optimizer.ts` (pur,
 déterministe, testé). (1) **Sélection optimale** — sac à dos 0/1 **exact**

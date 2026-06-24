@@ -73,15 +73,6 @@ function IconVote() {
   );
 }
 
-function IconComposer() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-      <path d="M12 3v18M3 12h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
-}
-
 function IconHebergements() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -141,7 +132,6 @@ interface NavItem {
 }
 
 const SECONDARY_ITEMS: NavItem[] = [
-  { href: "/composer",      label: "Composer",       icon: <IconComposer />,      matchPrefix: "/composer" },
   { href: "/lieux",         label: "Lieux",          icon: <IconLieux />,         matchPrefix: "/lieux" },
   { href: "/hebergements",  label: "Hébergements",   icon: <IconHebergements />,  matchPrefix: "/hebergements" },
   { href: "/bagages",       label: "Bagages",        icon: <IconBagages />,       matchPrefix: "/bagages" },

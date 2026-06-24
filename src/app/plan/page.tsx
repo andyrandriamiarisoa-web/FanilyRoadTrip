@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import { PlanGenerator } from "@/components/wizard/PlanGenerator";
-import { ChargePlanner } from "@/components/routing/ChargePlanner";
-import { AiItineraryGenerator } from "@/components/wizard/AiItineraryGenerator";
+import { PlanWizard } from "@/components/plan/PlanWizard";
 
 export const metadata: Metadata = {
-  title: "Générer le voyage",
+  title: "Planifier un voyage",
 };
 
 export default function PlanPage() {
@@ -15,19 +13,20 @@ export default function PlanPage() {
           className="text-2xl font-bold"
           style={{ color: "var(--text-primary)" }}
         >
-          Générer votre plan de voyage
+          Planifier un voyage
         </h1>
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Le voyage de référence Fresnes ↔ Marseille est pré-configuré.
-          Cliquez sur « Générer » pour lancer la planification.
+        <p
+          className="text-sm"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Deux entrées possibles : un voyage <strong>planifié</strong> avec dates
+          de départ et de retour, ou un voyage <strong>avec ancre</strong> autour
+          d’un événement à date fixe. Le Profil Foyer (bébé, médical, télétravail)
+          est appliqué automatiquement.
         </p>
       </header>
 
-      <PlanGenerator />
-
-      <AiItineraryGenerator />
-
-      <ChargePlanner />
+      <PlanWizard />
     </div>
   );
 }
