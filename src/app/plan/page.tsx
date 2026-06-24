@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { PlanWizard } from "@/components/plan/PlanWizard";
 
 export const metadata: Metadata = {
@@ -26,7 +27,23 @@ export default function PlanPage() {
         </p>
       </header>
 
-      <PlanWizard />
+      {/*
+        Suspense boundary nécessaire car `PlanWizard` utilise
+        `useSearchParams()` (pour récupérer `?savedTripId=…`) — Next.js
+        l'exige pour autoriser le pré-rendu statique.
+      */}
+      <Suspense fallback={<PlanWizardSkeleton />}>
+        <PlanWizard />
+      </Suspense>
+    </div>
+  );
+}
+
+function PlanWizardSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden="true">
+      <div className="skeleton h-24" />
+      <div className="skeleton h-96" />
     </div>
   );
 }
