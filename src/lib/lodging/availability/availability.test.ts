@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import { MockLodgingAvailabilityProvider, rankOffers } from "./mock"
 import { CachingLodgingAvailabilityProvider } from "./cache"
 import { mapLiteApiResponse, type LiteApiHotelRaw } from "./liteapi"
+import { mapHotelbedsResponse, type HotelbedsHotelRaw } from "./hotelbeds"
 import { nightsBetween, type AvailabilityRequest, type HotelOffer } from "./types"
 
 const req: AvailabilityRequest = {
@@ -104,14 +105,51 @@ describe("mapLiteApiResponse — mapping LiteAPI → offres normalisées", () =>
   })
 })
 
+describe("mapHotelbedsResponse — mapping Hotelbeds → offres normalisées", () => {
+  it("retient le prix net minimal, marque la source sandbox, classe sans exclure", () => {
+    const raw: HotelbedsHotelRaw[] = [
+      {
+        code: 4242,
+        name: "Hôtel Alpha",
+        latitude: 43.3,
+        longitude: 5.37,
+        destinationName: "Marseille",
+        rooms: [
+          { rates: [{ net: "180.00" }, { net: "210.50" }] },
+          { rates: [{ net: 175.25 }] },
+        ],
+      },
+      { code: 9999, name: "Hôtel Complet", rooms: [] }, // pas de tarif → indisponible
+    ]
+    const offers = mapHotelbedsResponse(raw, req, "2026-08-07T08:00:00.000Z")
+    expect(offers).toHaveLength(2) // l'indisponible n'est pas exclu
+    expect(offers[0].id).toBe("hotelbeds-4242")
+    expect(offers[0].priceTotalCents).toBe(17525) // min(180, 210.5, 175.25) × 100
+    expect(offers[0].sourceName).toBe("Hotelbeds Test")
+    expect(offers[0].sourceStatus).toBe("verified")
+    const complet = offers.find((o) => o.id === "hotelbeds-9999")!
+    expect(complet.available).toBe(false)
+    expect(complet.priceTotalCents).toBeNull()
+  })
+
+  it("retombe sur minRate si aucune chambre n'a de tarif détaillé", () => {
+    const raw: HotelbedsHotelRaw[] = [
+      { code: 1, name: "Hôtel Beta", minRate: "99.00", rooms: [] },
+    ]
+    const offers = mapHotelbedsResponse(raw, req, "2026-08-07T08:00:00.000Z")
+    expect(offers[0].available).toBe(true)
+    expect(offers[0].priceTotalCents).toBe(9900)
+  })
+})
+
 describe("CachingLodgingAvailabilityProvider", () => {
   it("ne délègue qu'une fois dans la fenêtre TTL", async () => {
     let calls = 0
     const delegate = {
-      mode: "amadeus" as const,
+      mode: "liteapi" as const,
       async search() {
         calls++
-        return { offers: [], mode: "amadeus" as const, sourceName: "Amadeus", notes: [] }
+        return { offers: [], mode: "liteapi" as const, sourceName: "LiteAPI", notes: [] }
       },
     }
     let t = 0

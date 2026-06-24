@@ -55,17 +55,30 @@ Dans **Vercel → Project → Settings → Git** :
 | `OPENCHARGEMAP_API_KEY` | Optionnel | Bornes de recharge en direct | Seed embarqué |
 | `OPENAGENDA_PUBLIC_KEY` | Optionnel | Événements datés le long du corridor (synthèse S3) | Mock |
 
-### 2.3 Disponibilité des hébergements (temps réel, R5)
+### 2.3 Disponibilité des hébergements (sandbox temps réel, R5)
+
+> **Contexte marché** : la production des API hôtels est partout réservée
+> aux entreprises (Amadeus Enterprise, Booking Managed Affiliate, Hotelbeds
+> avec contrat). Pour un particulier, les **sandbox / environnements de test**
+> renvoient les **mêmes données live** que la prod, avec un quota réduit et
+> sans pouvoir réserver — ce qui correspond exactement au cas d'usage
+> read-only d'Odyssée.
 
 | Variable | Requis | Rôle | Défaut |
 |---|---|---|---|
-| `AMADEUS_CLIENT_ID` | Optionnel | Fournisseur **primaire** (Amadeus Self-Service, Hotel Search) | Mock |
-| `AMADEUS_CLIENT_SECRET` | Optionnel | Secret OAuth2 Amadeus | — |
-| `LITEAPI_KEY` | Optionnel | Fournisseur **alternatif** (utilisé si Amadeus absent) | — |
-| `LODGING_AVAILABILITY_TTL_SECONDS` | Optionnel | TTL du cache de dispo (préserve le quota gratuit) | `600` |
+| `LITEAPI_KEY` | Optionnel | Fournisseur **primaire** — LiteAPI Sandbox (5 req/s, données live) | Mock |
+| `HOTELBEDS_API_KEY` | Optionnel | Fournisseur **alternatif** — Hotelbeds APItude env. de test (50 req/jour, données live) | — |
+| `HOTELBEDS_API_SECRET` | Optionnel | Secret HMAC Hotelbeds | — |
+| `HOTELBEDS_USE_TEST_ENV` | Optionnel | `false` pour cibler la prod (entreprises uniquement) | `true` |
+| `LODGING_AVAILABILITY_TTL_SECONDS` | Optionnel | TTL du cache (préserve les quotas sandbox) | `600` |
 
-> Priorité : **Amadeus** si ses identifiants sont posés, sinon **LiteAPI** si sa
-> clé l'est, sinon **mock**. Lecture seule stricte : aucune réservation/paiement.
+> Priorité : **LiteAPI** si sa clé est posée, sinon **Hotelbeds** si ses
+> identifiants le sont, sinon **mock**. Lecture seule stricte.
+>
+> **Amadeus Self-Service retiré** (décommissionné le 17 juillet 2026 ; son env.
+> Test renvoyait par ailleurs des données statiques cachées, faux `verified`).
+> **Booking.com Demand API et TripAdvisor Content API hors périmètre**
+> (approbation business par construction).
 
 ### 2.4 Synthèse de voyage
 
@@ -104,17 +117,23 @@ Dans **Vercel → Project → Settings → Git** :
 3. Poser `ANTHROPIC_API_KEY` dans Vercel. Modèle utilisé : `claude-sonnet-4-6`.
 4. *(Optionnel)* surveiller la consommation (facturation à l'usage).
 
-### Amadeus Self-Service — disponibilité hôtels (primaire)
-1. Créer un compte sur **https://developers.amadeus.com**.
-2. Créer une application → récupérer **API Key** et **API Secret**.
-3. Poser `AMADEUS_CLIENT_ID` et `AMADEUS_CLIENT_SECRET`.
-4. Palier **gratuit** (quota mensuel) ; au-delà → repli mock automatique.
-5. Lecture seule : on n'utilise que *Hotel Search* (recherche + tarifs).
-
-### LiteAPI — disponibilité hôtels (alternative)
+### LiteAPI — disponibilité hôtels (primaire)
 1. Créer un compte sur **https://www.liteapi.travel** (dashboard développeur).
-2. Récupérer la clé API.
-3. Poser `LITEAPI_KEY` (utilisée seulement si Amadeus n'est pas configuré).
+2. Récupérer la clé **Sandbox**.
+3. Poser `LITEAPI_KEY`.
+4. Sandbox = 5 req/s, **données live**, lecture seule (les bookings testables
+   n'effectuent ni réservation ni paiement réel). Quota largement suffisant
+   pour un usage particulier avec le cache TTL 10 min.
+5. Production = 27 000 req/min + vraies réservations, réservée aux entreprises.
+
+### Hotelbeds APItude — disponibilité hôtels (alternative)
+1. Créer un compte sur **https://developer.hotelbeds.com**.
+2. Créer une application → récupérer **API Key** et **API Secret**.
+3. Poser `HOTELBEDS_API_KEY` et `HOTELBEDS_API_SECRET`.
+4. Env. de test = **50 req/jour**, serveurs identiques à la prod pour la
+   recherche (mêmes données live), bookings neutralisés.
+5. Laisser `HOTELBEDS_USE_TEST_ENV=true` (défaut). Production = contrat
+   commercial + certification, entreprises uniquement.
 
 ### OpenAgenda — événements datés (synthèse)
 1. Créer un compte sur **https://openagenda.com** puis **https://developers.openagenda.com**.
@@ -145,11 +164,11 @@ Dans **Vercel → Project → Settings → Git** :
 **A. Démo / vitrine (zéro configuration)**
 - Ne rien poser. Laisser `NEXT_PUBLIC_APP_MODE=mock`. Tout fonctionne, hors-ligne.
 
-**B. Live « essentiel » (IA + hôtels)**
+**B. Live « essentiel » (IA + hôtels sandbox)**
 1. `NEXT_PUBLIC_APP_MODE=live`
 2. `ANTHROPIC_API_KEY`
-3. `AMADEUS_CLIENT_ID` + `AMADEUS_CLIENT_SECRET`
-   *(ou `LITEAPI_KEY`)*
+3. `LITEAPI_KEY`
+   *(ou `HOTELBEDS_API_KEY` + `HOTELBEDS_API_SECRET`)*
 
 **C. Live complet**
 - B + `OPENAGENDA_PUBLIC_KEY` + `OPENCHARGEMAP_API_KEY` + le bloc `TESLA_*`.
@@ -161,7 +180,7 @@ Dans **Vercel → Project → Settings → Git** :
 
 - [ ] L'app charge ; le bandeau de mode affiche `mock` ou `live`.
 - [ ] `/composer` compose des voyages ; « Enrichir le récit » répond (gabarit si pas de clé, IA sinon).
-- [ ] `/hebergements` renvoie des offres ; la **source** affichée est `mock` ou `Amadeus`/`LiteAPI`.
+- [ ] `/hebergements` renvoie des offres ; la **source** affichée est `mock`, `LiteAPI` ou `Hotelbeds Test`.
 - [ ] `/lieux` liste des POI avec horaires et source.
 - [ ] *(Si Tesla configuré)* `/parametres` → connexion Tesla → lecture du SoC.
 - [ ] `TESLA_ACCESS_TOKEN` **absent** des variables de production.

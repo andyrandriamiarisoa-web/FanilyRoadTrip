@@ -14,8 +14,8 @@ export default function HebergementsPage() {
         </h1>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
           Recherche de disponibilités et tarifs (lecture seule). Démonstration sans clé ;
-          données réelles via Amadeus en mode live. Les complets restent affichés, la source
-          et la fraîcheur sont indiquées.
+          données live via LiteAPI sandbox ou Hotelbeds (env. de test) en mode live. Les
+          complets restent affichés, la source et la fraîcheur sont indiquées.
         </p>
       </header>
 

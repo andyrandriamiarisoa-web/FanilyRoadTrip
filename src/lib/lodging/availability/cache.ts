@@ -1,8 +1,8 @@
 /**
- * Cache TTL devant un `LodgingAvailabilityProvider` — préserve le **quota
- * gratuit** (Amadeus) et la latence : au plus une recherche facturée par
- * (ville + dates + occupants) et par fenêtre TTL. Le `readAt` des offres reste
- * la vraie heure de lecture → fraîcheur affichée honnêtement.
+ * Cache TTL devant un `LodgingAvailabilityProvider` — préserve les **quotas
+ * sandbox** (LiteAPI, Hotelbeds Test) et la latence : au plus une recherche
+ * par (ville + dates + occupants) et par fenêtre TTL. Le `readAt` des offres
+ * reste la vraie heure de lecture → fraîcheur affichée honnêtement.
  */
 
 import type {

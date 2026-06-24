@@ -1,15 +1,22 @@
 /**
  * Fabrique de `LodgingAvailabilityProvider` (Lot R5) — **serveur uniquement**.
  *
- * Mock par défaut (gratuit, déterministe, hors-ligne). En mode live, Amadeus
- * Self-Service si les identifiants sont posés, derrière un cache TTL pour
- * préserver le quota gratuit. Les secrets ne transitent jamais par le client.
+ * Mock par défaut (gratuit, déterministe, hors-ligne). En mode live, on tente
+ * un fournisseur **sandbox temps réel** dans l'ordre — LiteAPI sandbox, puis
+ * Hotelbeds (env. de test). Tous deux renvoient des **données live** (la
+ * mention « sandbox » concerne uniquement l'absence de booking et un quota
+ * réduit). Les secrets ne transitent jamais par le client.
+ *
+ * Amadeus Self-Service est retiré : (1) le portail est **décommissionné le
+ * 17 juillet 2026** ; (2) son environnement Test ne renvoyait que des données
+ * **statiques cachées** — l'estampiller `sourceStatus: "verified"` était une
+ * fausse promesse (anti-pattern #3).
  */
 
 import type { AvailabilityRequest, AvailabilityResult, LodgingAvailabilityProvider } from "./types"
 import { MockLodgingAvailabilityProvider } from "./mock"
-import { AmadeusLodgingAvailabilityProvider } from "./amadeus"
 import { LiteApiLodgingAvailabilityProvider } from "./liteapi"
+import { HotelbedsLodgingAvailabilityProvider } from "./hotelbeds"
 import { CachingLodgingAvailabilityProvider } from "./cache"
 
 /** TTL du cache de disponibilité (secondes) — défaut 10 min. */
@@ -22,20 +29,24 @@ function cacheTtlMs(): number {
 
 export function getLodgingAvailabilityProvider(): LodgingAvailabilityProvider {
   const isLive = process.env.NEXT_PUBLIC_APP_MODE === "live"
-  const clientId = process.env.AMADEUS_CLIENT_ID
-  const clientSecret = process.env.AMADEUS_CLIENT_SECRET
   const liteApiKey = process.env.LITEAPI_KEY
+  const hotelbedsKey = process.env.HOTELBEDS_API_KEY
+  const hotelbedsSecret = process.env.HOTELBEDS_API_SECRET
 
-  // Primaire : Amadeus. Alternative : LiteAPI. Tous deux derrière le cache TTL.
-  if (isLive && clientId && clientSecret) {
-    return new CachingLodgingAvailabilityProvider(
-      new AmadeusLodgingAvailabilityProvider({ clientId, clientSecret }),
-      { ttlMs: cacheTtlMs() },
-    )
-  }
   if (isLive && liteApiKey) {
     return new CachingLodgingAvailabilityProvider(
       new LiteApiLodgingAvailabilityProvider({ apiKey: liteApiKey }),
+      { ttlMs: cacheTtlMs() },
+    )
+  }
+  if (isLive && hotelbedsKey && hotelbedsSecret) {
+    const useTestEnv = process.env.HOTELBEDS_USE_TEST_ENV !== "false"
+    return new CachingLodgingAvailabilityProvider(
+      new HotelbedsLodgingAvailabilityProvider({
+        apiKey: hotelbedsKey,
+        apiSecret: hotelbedsSecret,
+        useTestEnv,
+      }),
       { ttlMs: cacheTtlMs() },
     )
   }
