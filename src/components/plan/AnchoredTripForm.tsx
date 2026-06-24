@@ -21,7 +21,8 @@ import type {
 } from "@/lib/synthesis/types";
 import type { DateOption } from "@/lib/synthesis/date-flex";
 import type { FamilyProfile } from "@/types";
-import type { AnchoredFormState } from "@/lib/saved-trips/types";
+import type { AnchoredFormState, TripIntent } from "@/lib/saved-trips/types";
+import { nightsFromIntent } from "@/lib/saved-trips/types";
 import { CityAutocomplete } from "./CityAutocomplete";
 import { StopList, type PlanStop } from "./StopList";
 
@@ -118,16 +119,21 @@ export function AnchoredTripForm({
     onChange({ ...value, ...p });
   }
 
+  // anchorEndDate par défaut = anchorStartDate (événement ponctuel).
+  const effectiveAnchorEnd =
+    value.anchorEndDate && value.anchorEndDate.length === 10
+      ? value.anchorEndDate
+      : value.anchorStartDate;
+
   const ready =
     value.anchorTitle.trim().length > 0 &&
     value.anchorCity.trim().length > 0 &&
     value.anchorStartDate.length === 10 &&
+    effectiveAnchorEnd >= value.anchorStartDate &&
     value.originCity.trim().length > 0 &&
     value.earliestStart.length === 10 &&
     value.latestEnd.length === 10 &&
-    value.earliestStart <= value.latestEnd &&
-    value.minNights > 0 &&
-    value.maxNights >= value.minNights;
+    value.earliestStart <= value.latestEnd;
 
   async function compose(e: React.FormEvent) {
     e.preventDefault();
@@ -148,10 +154,24 @@ export function AnchoredTripForm({
         title: value.anchorTitle.trim(),
         location: { lat: anchorGeo.lat, lng: anchorGeo.lng },
         start: `${value.anchorStartDate}T${value.anchorStartTime}:00`,
-        end: `${value.anchorStartDate}T${value.anchorEndTime}:00`,
+        // Pour un séjour multi-jour, la fin est sur `effectiveAnchorEnd` ;
+        // sinon (événement ponctuel), même date. Le solveur détecte
+        // automatiquement la durée < 24h pour rester en mono-jour.
+        end: `${effectiveAnchorEnd}T${value.anchorEndTime}:00`,
         source: "saisie utilisateur",
         sourceStatus: "verified",
       };
+
+      // Calcule les bornes de nuits depuis l'intention choisie.
+      const { minNights, maxNights } = nightsFromIntent({
+        intent: value.intent,
+        earliestStart: value.earliestStart,
+        latestEnd: value.latestEnd,
+        anchorStartDate: value.anchorStartDate,
+        anchorEndDate: effectiveAnchorEnd,
+        minNights: value.minNights,
+        maxNights: value.maxNights,
+      });
 
       const opportunities: Opportunity[] = value.stops
         .map((s, i) => stopToOpportunity(s, i))
@@ -168,8 +188,8 @@ export function AnchoredTripForm({
           origin: { lat: originGeo.lat, lng: originGeo.lng },
           earliestStart: value.earliestStart,
           latestEnd: value.latestEnd,
-          minNights: value.minNights,
-          maxNights: value.maxNights,
+          minNights,
+          maxNights,
         },
         constraints: constraintsFromProfile(profile),
       };
@@ -248,19 +268,28 @@ export function AnchoredTripForm({
           placeholder="ex. Marseille"
           required
         />
-        <div className="grid grid-cols-3 gap-3">
-          <label className="flex flex-col gap-1.5 col-span-3 sm:col-span-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1.5">
             <span
               className="text-sm font-medium"
               style={{ color: "var(--text-on-card-warm)" }}
             >
-              Date
+              Du
             </span>
             <input
               type="date"
               required
               value={value.anchorStartDate}
-              onChange={(e) => patch({ anchorStartDate: e.target.value })}
+              onChange={(e) => {
+                const next = e.target.value;
+                // Si la date de fin est antérieure à la nouvelle date de
+                // début, on la recale automatiquement.
+                const nextEnd =
+                  value.anchorEndDate && value.anchorEndDate >= next
+                    ? value.anchorEndDate
+                    : next;
+                patch({ anchorStartDate: next, anchorEndDate: nextEnd });
+              }}
               className="h-11 px-3 rounded-lg w-full text-sm"
               style={inputStyle}
             />
@@ -270,7 +299,26 @@ export function AnchoredTripForm({
               className="text-sm font-medium"
               style={{ color: "var(--text-on-card-warm)" }}
             >
-              Heure début
+              Au
+            </span>
+            <input
+              type="date"
+              required
+              value={effectiveAnchorEnd}
+              min={value.anchorStartDate || undefined}
+              onChange={(e) => patch({ anchorEndDate: e.target.value })}
+              className="h-11 px-3 rounded-lg w-full text-sm"
+              style={inputStyle}
+            />
+          </label>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span
+              className="text-sm font-medium"
+              style={{ color: "var(--text-on-card-warm)" }}
+            >
+              Heure de début (1er jour)
             </span>
             <input
               type="time"
@@ -286,7 +334,7 @@ export function AnchoredTripForm({
               className="text-sm font-medium"
               style={{ color: "var(--text-on-card-warm)" }}
             >
-              Heure fin
+              Heure de fin (dernier jour)
             </span>
             <input
               type="time"
@@ -298,6 +346,14 @@ export function AnchoredTripForm({
             />
           </label>
         </div>
+        <p
+          className="text-xs"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Mariage, RDV, concert : laisse <em>Du = Au</em> (1 journée). Séjour,
+          séminaire ou conférence : étire <em>Au</em> jusqu&apos;au dernier jour. Le
+          foyer reste sur place pendant tout le bloc — pas de route.
+        </p>
       </section>
 
       <CityAutocomplete
@@ -313,15 +369,23 @@ export function AnchoredTripForm({
           className="text-sm font-semibold"
           style={{ color: "var(--text-primary)" }}
         >
-          Durée du voyage
+          Fenêtre du voyage
         </h3>
+        <p
+          className="text-xs"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          À partir de quand peux-tu partir, et jusqu&apos;à quand dois-tu être rentré ?
+          Le solveur explore plusieurs dates de départ et de retour dans cette
+          fenêtre.
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
             <span
               className="text-sm font-medium"
               style={{ color: "var(--text-primary)" }}
             >
-              Au plus tôt
+              Partir au plus tôt le
             </span>
             <input
               type="date"
@@ -337,7 +401,7 @@ export function AnchoredTripForm({
               className="text-sm font-medium"
               style={{ color: "var(--text-primary)" }}
             >
-              Au plus tard
+              Rentré au plus tard le
             </span>
             <input
               type="date"
@@ -350,46 +414,64 @@ export function AnchoredTripForm({
             />
           </label>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1.5">
-            <span
-              className="text-sm font-medium"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Min. nuits
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={value.minNights}
-              onChange={(e) =>
-                patch({ minNights: Math.max(1, Number(e.target.value) || 1) })
-              }
-              className="h-11 px-3 rounded-lg w-full text-sm"
-              style={inputStyle}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span
-              className="text-sm font-medium"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Max. nuits
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={value.maxNights}
-              onChange={(e) =>
-                patch({ maxNights: Math.max(1, Number(e.target.value) || 1) })
-              }
-              className="h-11 px-3 rounded-lg w-full text-sm"
-              style={inputStyle}
-            />
-          </label>
-        </div>
+        <IntentSelector
+          value={value.intent}
+          onChange={(intent) => patch({ intent })}
+        />
+        {value.intent === "custom" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <label className="flex flex-col gap-1.5">
+              <span
+                className="text-sm font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Au moins
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={value.minNights}
+                onChange={(e) =>
+                  patch({ minNights: Math.max(1, Number(e.target.value) || 1) })
+                }
+                className="h-11 px-3 rounded-lg w-full text-sm"
+                style={inputStyle}
+              />
+              <span
+                className="text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                nuits
+              </span>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span
+                className="text-sm font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Au plus
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={value.maxNights}
+                onChange={(e) =>
+                  patch({ maxNights: Math.max(1, Number(e.target.value) || 1) })
+                }
+                className="h-11 px-3 rounded-lg w-full text-sm"
+                style={inputStyle}
+              />
+              <span
+                className="text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                nuits
+              </span>
+            </label>
+          </div>
+        )}
       </section>
 
       <section className="space-y-2">
@@ -449,13 +531,96 @@ export function emptyAnchoredFormState(): AnchoredFormState {
     anchorTitle: "",
     anchorCity: "",
     anchorStartDate: "",
+    anchorEndDate: "",
     anchorStartTime: "16:00",
     anchorEndTime: "23:30",
     originCity: "",
     earliestStart: "",
     latestEnd: "",
+    intent: "maximize",
     minNights: 7,
     maxNights: 10,
     stops: [],
   };
+}
+
+// ── IntentSelector ──────────────────────────────────────────────────────────
+
+const INTENT_OPTIONS: { value: TripIntent; title: string; description: string }[] = [
+  {
+    value: "maximize",
+    title: "Maximiser le temps de voyage",
+    description:
+      "Le solveur prend toute la fenêtre disponible, sous tes contraintes (bébé, télétravail, canicule).",
+  },
+  {
+    value: "fastest",
+    title: "Au plus rapide",
+    description:
+      "Aller-retour minimum pour honorer l'ancre. Le solveur ramène le voyage au strict nécessaire.",
+  },
+  {
+    value: "custom",
+    title: "Sur mesure",
+    description:
+      "Tu fixes une fourchette de nuits (min/max). Utile pour caler sur un nombre précis de jours.",
+  },
+];
+
+function IntentSelector({
+  value,
+  onChange,
+}: {
+  value: TripIntent;
+  onChange: (next: TripIntent) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Choisir une intention de voyage"
+      className="space-y-2"
+    >
+      <p
+        className="text-sm font-medium"
+        style={{ color: "var(--text-primary)" }}
+      >
+        Combien de temps tu veux voyager ?
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {INTENT_OPTIONS.map((opt) => {
+          const active = opt.value === value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(opt.value)}
+              className="text-left rounded-lg p-3 min-h-[44px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{
+                background: active ? "var(--bg-surface)" : "var(--bg-base)",
+                border: `2px solid ${
+                  active ? "var(--accent-amber)" : "var(--border-default)"
+                }`,
+                outlineColor: "var(--accent-amber)",
+              }}
+            >
+              <p
+                className="font-semibold text-sm"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {opt.title}
+              </p>
+              <p
+                className="text-xs mt-1"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {opt.description}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

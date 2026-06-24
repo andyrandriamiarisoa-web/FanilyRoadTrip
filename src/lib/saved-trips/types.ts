@@ -44,22 +44,84 @@ export const PlannedFormStateSchema = z.object({
 });
 export type PlannedFormState = z.infer<typeof PlannedFormStateSchema>;
 
+/**
+ * Intention du foyer pour la durée du voyage. Le solveur reçoit toujours des
+ * bornes `minNights/maxNights` ; l'UI les calcule à partir de l'intention
+ * choisie + la fenêtre saisie. `custom` débloque les bornes éditables.
+ */
+export const TripIntentSchema = z.enum(["maximize", "fastest", "custom"]);
+export type TripIntent = z.infer<typeof TripIntentSchema>;
+
 /** Saisie Mode B — voyage avec ancre. */
 export const AnchoredFormStateSchema = z.object({
   mode: z.literal("anchored"),
   anchorTitle: z.string(),
   anchorCity: z.string(),
+  /** Premier jour de l'ancre (événement ponctuel ou début du séjour). */
   anchorStartDate: z.string(),
+  /** Dernier jour de l'ancre. Égal à `anchorStartDate` pour un événement ponctuel. */
+  anchorEndDate: z.string(),
+  /** Heure de début le 1er jour de l'ancre (HH:mm). */
   anchorStartTime: z.string(),
+  /** Heure de fin le dernier jour de l'ancre (HH:mm). */
   anchorEndTime: z.string(),
   originCity: z.string(),
   earliestStart: z.string(),
   latestEnd: z.string(),
+  /** Intention de voyage : maximiser / au plus rapide / sur mesure. */
+  intent: TripIntentSchema.default("maximize"),
+  /** Bornes effectives (auto-dérivées si `intent !== "custom"`). */
   minNights: z.number().int().min(1).max(60),
   maxNights: z.number().int().min(1).max(60),
   stops: z.array(PlanStopSchema),
 });
 export type AnchoredFormState = z.infer<typeof AnchoredFormStateSchema>;
+
+// ── Helpers d'intention (purs) ─────────────────────────────────────────────
+
+/** Calcule la durée en jours entre deux dates ISO (inclusive). */
+function inclusiveDays(startIso: string, endIso: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startIso) || !/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+    return 1;
+  }
+  const ms = Date.parse(`${endIso}T00:00:00Z`) - Date.parse(`${startIso}T00:00:00Z`);
+  return Math.max(1, Math.round(ms / 86_400_000) + 1);
+}
+
+/**
+ * Traduit une intention en bornes `[min, max]` de nuits, en s'appuyant sur la
+ * fenêtre et la durée du bloc d'ancre. Si `intent === "custom"`, on renvoie
+ * les bornes explicites stockées dans le state.
+ */
+export function nightsFromIntent(form: {
+  intent: TripIntent;
+  earliestStart: string;
+  latestEnd: string;
+  anchorStartDate: string;
+  anchorEndDate: string;
+  minNights: number;
+  maxNights: number;
+}): { minNights: number; maxNights: number } {
+  if (form.intent === "custom") {
+    const min = Math.max(1, form.minNights);
+    const max = Math.max(min, form.maxNights);
+    return { minNights: min, maxNights: max };
+  }
+  // Fenêtre disponible (nuits max possibles dans la fenêtre).
+  const windowNights = Math.max(1, inclusiveDays(form.earliestStart, form.latestEnd) - 1);
+  // Bloc d'ancre (jours consécutifs).
+  const anchorNights = Math.max(0, inclusiveDays(form.anchorStartDate, form.anchorEndDate) - 1);
+  if (form.intent === "fastest") {
+    // Au plus rapide : juste l'ancre + 1 nuit aller-retour.
+    const fast = Math.max(1, anchorNights + 1);
+    return { minNights: fast, maxNights: Math.min(windowNights, fast + 1) };
+  }
+  // maximize : prend toute la fenêtre disponible.
+  return {
+    minNights: Math.max(1, Math.min(windowNights, windowNights - 1)),
+    maxNights: windowNights,
+  };
+}
 
 export const FormStateSchema = z.discriminatedUnion("mode", [
   PlannedFormStateSchema,

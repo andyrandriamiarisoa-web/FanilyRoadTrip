@@ -5,7 +5,7 @@ import type {
 import type { SynthesisAdapters } from "./adapters";
 import { curateSlot } from "./curation";
 import {
-  haversineKm, projection, addDays, isoDateTime, weekday, parseHM,
+  haversineKm, projection, addDays, daysBetween, isoDateTime, weekday, parseHM,
 } from "./geo-time";
 
 // Réexport pour les importateurs historiques (tests, curation).
@@ -44,8 +44,13 @@ export async function layout(p: LayoutParams, adapters: SynthesisAdapters): Prom
   const { anchor, selected, window: win, constraints: c } = p;
   const conflicts: string[] = [];
 
-  const anchorDate = anchor.start.slice(0, 10);
-  const nights = Math.min(Math.max(14, win.minNights), win.maxNights);
+  const anchorStartDate = anchor.start.slice(0, 10);
+  const anchorDurationMs = Date.parse(anchor.end) - Date.parse(anchor.start);
+  const anchorEndDate =
+    anchorDurationMs >= 24 * 3_600_000 ? anchor.end.slice(0, 10) : anchorStartDate;
+  const anchorDays = Math.max(1, daysBetween(anchorStartDate, anchorEndDate) + 1);
+  // Nuits dérivées honnêtement des bornes — plus de constante 14 codée en dur.
+  const nights = Math.max(win.minNights, Math.min(win.maxNights, win.maxNights));
 
   const out = selected
     .filter(o => projection(o.location, win.origin, anchor.location) < 0.95)
@@ -54,10 +59,13 @@ export async function layout(p: LayoutParams, adapters: SynthesisAdapters): Prom
     .filter(o => !out.includes(o))
     .sort((a, b) => projection(a.location, anchor.location, win.origin) - projection(b.location, anchor.location, win.origin));
 
-  const outboundDays = Math.max(1, Math.min(nights - 1, Math.round(nights * 0.5)));
-  let startDate = addDays(anchorDate, -outboundDays);
+  // Aller : avant le bloc d'ancre. Le bloc consomme (anchorDays - 1) nuits
+  // sur place ; le reste se répartit aller/retour.
+  const offBlockNights = Math.max(0, nights - (anchorDays - 1));
+  const outboundDays = Math.max(1, Math.min(offBlockNights, Math.round(offBlockNights * 0.5)));
+  let startDate = addDays(anchorStartDate, -outboundDays);
   if (startDate < win.earliestStart) { startDate = win.earliestStart; conflicts.push("Date de départ ajustée au plus tôt autorisé."); }
-  let endDate = addDays(startDate, nights);
+  let endDate = addDays(anchorEndDate, Math.max(0, offBlockNights - outboundDays));
   if (endDate > win.latestEnd) { endDate = win.latestEnd; conflicts.push("Date de retour ajustée au plus tard autorisé."); }
 
   const sequence: { loc: LatLng; opp?: Opportunity; isAnchor?: boolean }[] = [
@@ -75,7 +83,8 @@ export async function layout(p: LayoutParams, adapters: SynthesisAdapters): Prom
   let curLoc = win.origin;
   let driveSinceBreak = 0;
 
-  for (let dayNo = 0; dayNo <= nights; dayNo++) {
+  const totalDaysV1 = daysBetween(startDate, endDate);
+  for (let dayNo = 0; dayNo <= totalDaysV1; dayNo++) {
     const date = addDays(startDate, dayNo);
     const isWorkday = c.workDays.includes(weekday(date));
     const heat = await adapters.canicule.isHeatAlert(curLoc, date);

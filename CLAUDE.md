@@ -37,6 +37,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | S7 | **Durcissement du solveur** (sac à dos 0/1 exact + layout aligné sur la date d'ancre — pur TS, déployable) | ✅ |
 | U1 | **Refonte `/plan` mode production** (Mode A planifié / Mode B avec ancre, formulaires propres, voyage de référence hardcodé retiré) | ✅ |
 | V1 | **Voyages sauvegardés & refresh dispos hôtel** (store IndexedDB v8 `savedTrips`+`lodgingSnapshots`, page `/voyages`, édition d'un voyage existant, bouton « Envoyer au carnet », bouton « Rafraîchir les dispos hôtel ») | ✅ |
+| V2 | **Solveur ancre multi-jour + intention de voyage + carnet bâti depuis candidat** (séminaire/séjour pris en charge nativement par S7, toggle Maximiser/Au plus rapide/Sur mesure, retrait du hardcode mock-orchestrator sur la promotion) | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :

@@ -12,8 +12,14 @@
  *      temps de visite. Les personnes sont des **ancres souples** toujours
  *      retenues (S5), retranchées du budget.
  *   2. **Alignement exact de l'ancre** — `layoutAligned` épingle l'ancre sur sa
- *      **date réelle** (calendrier d'abord) plutôt que de la laisser tomber où
- *      le glouton arrive (imprécision du V1).
+ *      **plage de dates réelle** (calendrier d'abord) plutôt que de la laisser
+ *      tomber où le glouton arrive (imprécision du V1).
+ *
+ * V2 (cette PR) : l'ancre peut couvrir **plusieurs jours** consécutifs
+ * (séminaire, séjour). Pendant le bloc d'ancre, le foyer reste sur place
+ * (pas de route, logement à proximité). Le `nights` n'a plus de constante
+ * codée en dur — il est dérivé de `window.maxNights` (ou de la valeur
+ * `minNights` quand l'utilisateur veut « au plus rapide »).
  *
  * Le solveur heuristique V1 (`solver.ts`) reste disponible (repli / tests).
  */
@@ -101,7 +107,7 @@ export function selectOptimal(input: SelectionInput): Opportunity[] {
   return [...forced, ...picked];
 }
 
-// ── Layout aligné sur la date d'ancre (calendrier d'abord) ──────────────────
+// ── Layout aligné sur la plage d'ancre (calendrier d'abord) ─────────────────
 
 const DAY_START_MIN = 9 * 60;
 const DAY_END_MIN = 20 * 60;
@@ -135,16 +141,26 @@ export interface AlignedLayoutParams {
 }
 
 /**
- * Layout **calendrier d'abord** : l'ancre est posée exactement sur sa date.
- * Les opportunités retenues sont réparties sur les jours aller (avant l'ancre)
- * et retour (après), puis simulées heure par heure (pauses bébé, blocage
- * canicule sous alerte seulement, peu de route les jours travaillés).
+ * Layout **calendrier d'abord** : l'ancre est posée exactement sur sa **plage
+ * de dates** (un seul jour si `anchor.end` est le même jour que `anchor.start`,
+ * sinon un bloc multi-jour pendant lequel le foyer reste sur place).
+ *
+ * Les opportunités retenues sont réparties sur les jours **aller** (avant le
+ * bloc d'ancre) et **retour** (après), puis simulées heure par heure (pauses
+ * bébé, blocage canicule sous alerte seulement, peu de route les jours
+ * travaillés).
  */
 export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisAdapters): Promise<TripCandidate> {
   const { anchor, selected, window: win, constraints: c } = p;
   const conflicts: string[] = [];
   const anchorLoc = anchor.location;
-  const anchorDate = anchor.start.slice(0, 10);
+  const anchorStartDate = anchor.start.slice(0, 10);
+  // Un événement qui déborde l'heure (mariage finissant à 1h du matin)
+  // reste 1 jour. On ne passe en multi-jour que si la durée dépasse 24h.
+  const anchorDurationMs = Date.parse(anchor.end) - Date.parse(anchor.start);
+  const anchorEndDate =
+    anchorDurationMs >= 24 * 3_600_000 ? anchor.end.slice(0, 10) : anchorStartDate;
+  const anchorDays = Math.max(1, daysBetween(anchorStartDate, anchorEndDate) + 1);
 
   // Côté corridor : aller (origine→ancre) vs retour (ancre→origine).
   const out = selected
@@ -154,20 +170,32 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
     .filter((o) => !out.includes(o))
     .sort((a, b) => projection(a.location, anchorLoc, win.origin) - projection(b.location, anchorLoc, win.origin));
 
-  // Dates : on épingle l'ancre, puis on étale aller/retour dans la fenêtre.
-  const nights = Math.min(Math.max(win.minNights, 14), win.maxNights);
-  let outboundDays = Math.max(1, Math.min(nights - 1, Math.round(nights * 0.5)));
-  let startDate = addDays(anchorDate, -outboundDays);
+  // Total de nuits dérivé honnêtement des bornes (jamais de constante 14
+  // codée en dur — c'était l'ancienne dette qui produisait des voyages
+  // incohérents avec la saisie utilisateur).
+  const nightsRaw = Math.max(win.minNights, Math.min(win.maxNights, win.maxNights));
+  // Au moins assez de nuits pour contenir le bloc d'ancre + 1 nuit (arrivée).
+  const minRequiredNights = anchorDays; // dort sur place pendant le bloc
+  const nights = Math.max(nightsRaw, minRequiredNights);
+  if (nights < win.minNights) conflicts.push("Durée demandée écourtée pour tenir dans la fenêtre.");
+
+  // Décompose : nuits hors-bloc = aller + retour. Anchor block consomme
+  // (anchorDays - 1) nuits sur place. La nuit "de l'événement" est partagée
+  // avec le bloc (on dort à l'ancre la veille et après chaque jour du bloc).
+  const offBlockNights = Math.max(0, nights - (anchorDays - 1));
+  // Répartition aller/retour : ~40/60 (un peu plus de retour pour la décompresse).
+  let outboundDays = Math.max(1, Math.round(offBlockNights * 0.4));
+  let startDate = addDays(anchorStartDate, -outboundDays);
   if (startDate < win.earliestStart) {
     startDate = win.earliestStart;
-    outboundDays = Math.max(1, daysBetween(startDate, anchorDate));
+    outboundDays = Math.max(1, daysBetween(startDate, anchorStartDate));
     conflicts.push("Date de départ ajustée au plus tôt autorisé.");
   }
-  let returnDays = Math.max(1, nights - outboundDays);
-  let endDate = addDays(anchorDate, returnDays);
+  let returnDays = Math.max(1, offBlockNights - outboundDays);
+  let endDate = addDays(anchorEndDate, returnDays);
   if (endDate > win.latestEnd) {
     endDate = win.latestEnd;
-    returnDays = Math.max(0, daysBetween(anchorDate, endDate));
+    returnDays = Math.max(0, daysBetween(anchorEndDate, endDate));
     conflicts.push("Date de retour ajustée au plus tard autorisé.");
   }
 
@@ -177,7 +205,7 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   const outboundDates: string[] = [];
   for (let d = 0; d < outboundDays; d++) outboundDates.push(addDays(startDate, d));
   const returnDates: string[] = [];
-  for (let d = 1; d <= returnDays; d++) returnDates.push(addDays(anchorDate, d));
+  for (let d = 1; d <= returnDays; d++) returnDates.push(addDays(anchorEndDate, d));
 
   const isFree = (date: string) => !c.workDays.includes(weekday(date));
   const drivingOut = outboundDates.filter(isFree);
@@ -204,19 +232,94 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   let anchorPlaced = false;
 
   const totalDays = daysBetween(startDate, endDate);
+  const isInAnchorBlock = (date: string) =>
+    date >= anchorStartDate && date <= anchorEndDate;
+
   for (let dayNo = 0; dayNo <= totalDays; dayNo++) {
     const date = addDays(startDate, dayNo);
     const isWorkday = c.workDays.includes(weekday(date));
     const heat = await adapters.canicule.isHeatAlert(curLoc, date);
     if (heat) caniculeExposureDays++;
 
-    // Cibles du jour (uniquement les jours de route, jamais les jours travaillés).
-    const isAnchorDay = date === anchorDate;
-    const targets: Opportunity[] = assign.get(date) ?? [];
-
     const stops: PlannedStop[] = [];
     let clock = DAY_START_MIN;
     let dayDrive = 0;
+
+    // ── Bloc d'ancre : foyer sur place, pas de route, événement le 1er jour
+    if (isInAnchorBlock(date)) {
+      // Arrivée à l'ancre depuis ailleurs : ajoute le trajet juste avant
+      // d'entrer dans le bloc (premier jour seulement).
+      if (date === anchorStartDate && curLoc !== anchorLoc) {
+        const est = await adapters.travel.estimate(curLoc, anchorLoc, isoDateTime(date, clock));
+        // Conduite + pauses bébé (segments courts simplifiés).
+        let remaining = est.minutes;
+        while (driveSinceBreak + remaining > c.babyPauseEveryMin) {
+          const before = c.babyPauseEveryMin - driveSinceBreak;
+          clock += before; dayDrive += before; remaining -= before;
+          stops.push({
+            title: "Pause bébé", kind: "baby-pause",
+            start: isoDateTime(date, clock), end: isoDateTime(date, clock + c.babyPauseDurationMin),
+            location: curLoc, curated: curatedFor("baby-pause", curLoc, p.pool),
+          });
+          clock += c.babyPauseDurationMin; driveSinceBreak = 0;
+        }
+        if (remaining > 0) {
+          const driveStart = clock;
+          clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
+          stops.push({
+            title: `Trajet vers ${anchor.title}`, kind: "drive",
+            start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
+            location: anchorLoc,
+            note: est.chargeStops > 0 ? `${est.chargeStops} arrêt(s) Superchargeur inclus` : undefined,
+            sourceStatus: est.sourceStatus,
+          });
+        }
+        curLoc = anchorLoc;
+      }
+
+      // Stop "anchor" : journée à l'événement (heures exactes le premier jour,
+      // ou journée entière 09–18h pour les jours suivants du bloc).
+      if (date === anchorStartDate) {
+        stops.push({
+          title: anchor.title, kind: "anchor",
+          start: anchor.start, end: anchor.end, location: anchor.location,
+          source: anchor.source, sourceStatus: anchor.sourceStatus,
+        });
+        anchorPlaced = true;
+      } else if (date === anchorEndDate && anchorEndDate !== anchorStartDate) {
+        // Dernier jour du bloc — borne supérieure réelle.
+        stops.push({
+          title: `${anchor.title} — dernier jour`, kind: "anchor",
+          start: isoDateTime(date, parseHM("09:00")),
+          end: anchor.end,
+          location: anchor.location,
+          source: anchor.source, sourceStatus: anchor.sourceStatus,
+        });
+      } else {
+        // Jour intermédiaire du bloc : présence continue à l'ancre, 09h–18h.
+        stops.push({
+          title: `${anchor.title} — journée`, kind: "anchor",
+          start: isoDateTime(date, parseHM("09:00")),
+          end: isoDateTime(date, parseHM("18:00")),
+          location: anchor.location,
+          source: anchor.source, sourceStatus: anchor.sourceStatus,
+        });
+      }
+
+      stops.push({
+        title: "Nuit (à proximité de l'événement)",
+        kind: "night",
+        start: isoDateTime(date, Math.max(clock, DAY_END_MIN)),
+        end: isoDateTime(addDays(date, 1), DAY_START_MIN),
+        location: anchorLoc,
+      });
+
+      days.push({ date, isWorkday, stops, driveMinutes: dayDrive });
+      continue;
+    }
+
+    // ── Journée normale (hors bloc d'ancre)
+    const targets: Opportunity[] = assign.get(date) ?? [];
 
     if (isWorkday) {
       stops.push({
@@ -231,11 +334,9 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
       clock = parseHM(c.workEnd);
     }
 
-    // Aller vers les cibles du jour (opportunités, puis l'ancre le jour J).
-    const ordered: { loc: LatLng; opp?: Opportunity; isAnchor?: boolean }[] = [
-      ...targets.map((o) => ({ loc: o.location, opp: o })),
-      ...(isAnchorDay ? [{ loc: anchorLoc, isAnchor: true }] : []),
-    ];
+    // Aller vers les cibles du jour (opportunités).
+    const ordered: { loc: LatLng; opp?: Opportunity }[] =
+      targets.map((o) => ({ loc: o.location, opp: o }));
 
     for (const node of ordered) {
       const est = await adapters.travel.estimate(curLoc, node.loc, isoDateTime(date, clock));
@@ -271,7 +372,7 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
         const driveStart = clock;
         clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
         stops.push({
-          title: node.isAnchor ? anchor.title : (node.opp ? `Trajet vers ${node.opp.title}` : "Trajet"),
+          title: node.opp ? `Trajet vers ${node.opp.title}` : "Trajet",
           kind: "drive",
           start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
           location: node.loc,
@@ -281,14 +382,7 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
       }
       curLoc = node.loc;
 
-      if (node.isAnchor) {
-        stops.push({
-          title: anchor.title, kind: "anchor",
-          start: anchor.start, end: anchor.end, location: anchor.location,
-          source: anchor.source, sourceStatus: anchor.sourceStatus,
-        });
-        anchorPlaced = true;
-      } else if (node.opp) {
+      if (node.opp) {
         const o = node.opp;
         const isPerson = o.category === "people";
         if (isPerson || clock + o.durationMin <= DAY_END_MIN) {

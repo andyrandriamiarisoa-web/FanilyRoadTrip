@@ -48,7 +48,10 @@ import {
   type PlannedFormState,
   type SavedTrip,
 } from "@/lib/saved-trips/types";
-import { formStateToTripRequest } from "@/lib/saved-trips/promote";
+import {
+  candidateToTripPlan,
+  draftToTripPlan,
+} from "@/lib/saved-trips/build-trip-plan";
 
 function newSavedTripFromMode(mode: PlanMode): SavedTrip {
   const now = new Date().toISOString();
@@ -190,28 +193,34 @@ export function PlanWizard() {
     setPromoting(true);
     try {
       const profile = await loadActiveProfile();
-      const tripRequest = formStateToTripRequest(trip.formState, {
-        profileId: profile.id,
-      });
-      const res = await fetch("/api/agents/plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(tripRequest),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        plan?: TripPlan;
-        error?: string;
-      };
-      if (!res.ok || !data.ok || !data.plan) {
-        throw new Error(data.error ?? "Promotion impossible");
+      let plan: TripPlan;
+      if (trip.mode === "anchored") {
+        if (!trip.candidates || trip.candidates.length === 0) {
+          throw new Error("Aucun candidat à promouvoir. Compose d'abord les voyages.");
+        }
+        const idx = trip.selectedCandidateIdx ?? 0;
+        const candidate = trip.candidates[idx] as unknown as TripCandidate;
+        plan = candidateToTripPlan(
+          candidate,
+          trip.formState as AnchoredFormState,
+          { profileId: profile.id },
+        );
+      } else {
+        if (!trip.draft) {
+          throw new Error("Aucun brouillon à promouvoir. Génère d'abord l'itinéraire.");
+        }
+        plan = draftToTripPlan(
+          trip.draft,
+          trip.formState as PlannedFormState,
+          { profileId: profile.id },
+        );
       }
-      await saveTrip(data.plan);
+      await saveTrip(plan);
       const now = new Date().toISOString();
       const saved = await putSavedTrip({
         ...trip,
         status: "validated",
-        promotedTripPlanId: data.plan.id,
+        promotedTripPlanId: plan.id,
         promotedAt: now,
         name:
           trip.name && trip.name.length > 0
