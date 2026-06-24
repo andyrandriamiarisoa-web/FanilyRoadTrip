@@ -61,7 +61,7 @@ export class MockLodgingAvailabilityProvider implements LodgingAvailabilityProvi
       offers: rankOffers(offers),
       mode: "mock",
       sourceName: "mock",
-      notes: ["Disponibilités simulées (mode démo) — posez une clé Amadeus pour des données réelles."],
+      notes: ["Disponibilités simulées (mode démo) — posez une clé LiteAPI ou Hotelbeds (sandbox) pour des données live."],
     }
   }
 }

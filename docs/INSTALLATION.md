@@ -122,18 +122,36 @@ Toutes les variables sont **optionnelles** et **serveur uniquement** (sauf
 > **pré-embarqués** dans `src/data/poi.json` et rafraîchis hors-ligne via
 > `scripts/ingest-poi.md`.
 
-### 3.3 Disponibilité des hébergements (temps réel, R5)
+### 3.3 Disponibilité des hébergements (sandbox temps réel, R5)
+
+> **Honnêteté du marché** : l'API hôtels en **production** est partout
+> réservée aux entreprises (Amadeus Enterprise, Booking Managed Affiliate
+> Partner, Hotelbeds avec contrat commercial…). Pour un **particulier**, les
+> **sandbox / environnements de test** restent ouverts, renvoient des
+> **données live identiques à la prod**, mais avec un quota réduit et sans
+> pouvoir réserver. Comme Odyssée est **read-only par principe** (anti-pattern
+> projet : aucune réservation), ces sandbox **font exactement ce qu'on veut**.
 
 | Variable | Rôle | Défaut |
 |---|---|---|
-| `AMADEUS_CLIENT_ID` | Fournisseur **primaire** — Amadeus Self-Service (Hotel Search) | Mock |
-| `AMADEUS_CLIENT_SECRET` | Secret OAuth2 Amadeus | — |
-| `LITEAPI_KEY` | Fournisseur **alternatif** — utilisé uniquement si Amadeus absent | — |
-| `LODGING_AVAILABILITY_TTL_SECONDS` | TTL du cache de disponibilité (préserve le quota gratuit) | `600` (10 min) |
+| `LITEAPI_KEY` | Fournisseur **primaire** — LiteAPI Sandbox (5 req/s, données live) | Mock |
+| `HOTELBEDS_API_KEY` | Fournisseur **alternatif** — Hotelbeds APItude (env. de test, 50 req/jour, données live) | — |
+| `HOTELBEDS_API_SECRET` | Secret HMAC Hotelbeds | — |
+| `HOTELBEDS_USE_TEST_ENV` | `false` pour cibler la prod (réservé entreprises) | `true` |
+| `LODGING_AVAILABILITY_TTL_SECONDS` | TTL du cache (préserve les quotas sandbox) | `600` (10 min) |
 
-> **Ordre de priorité** : Amadeus → LiteAPI → mock. Lecture seule stricte :
-> aucune réservation, aucun paiement. **Airbnb est hors périmètre** (aucune
-> API libre).
+> **Ordre de priorité** : LiteAPI → Hotelbeds → mock. Lecture seule stricte.
+>
+> **Amadeus Self-Service est retiré** : portail décommissionné le 17 juillet
+> 2026 ET son environnement Test ne renvoyait que des données **statiques
+> cachées** — un `sourceStatus: "verified"` mensonger. Pour les entreprises
+> ayant un contrat, l'Enterprise API (AQC) reste disponible via le portail
+> Enterprise, hors du périmètre de cette app.
+>
+> **Hors périmètre** : Booking.com Demand API et TripAdvisor Content API
+> exigent une approbation business (volume de réservations, T&C entreprise).
+> Airbnb n'expose aucune API libre. Tous ces fournisseurs ont par construction
+> un business model incompatible avec une intégration grand public.
 
 ### 3.4 Synthèse de voyage (S1–S7)
 
@@ -192,33 +210,37 @@ voix de barde. Modèle utilisé : `claude-sonnet-4-6`.
 > demande) et brefs (forced tool use → JSON court). En cas d'erreur, l'app
 > retombe automatiquement sur le mock — aucune panne visible.
 
-### 4.2 Amadeus Self-Service — disponibilité hôtels (primaire)
+### 4.2 LiteAPI — disponibilité hôtels (primaire)
 
-**À quoi ça sert** : recherche temps réel d'hôtels (Hotel Search) le long de
-l'itinéraire, classés sans exclusion. Lecture seule.
-
-| Étape | Action |
-|---|---|
-| 1 | Créer un compte sur **<https://developers.amadeus.com>**. |
-| 2 | *My Self-Service Workspace* → **Create New App**. Nom : `Odyssee`. |
-| 3 | Récupérer **API Key** et **API Secret**. |
-| 4 | Poser `AMADEUS_CLIENT_ID` et `AMADEUS_CLIENT_SECRET`. |
-| 5 | Palier **gratuit** : ~2 000 appels/mois en environnement *Test*. Au-delà → repli mock automatique. |
-| 6 | Pour la production, basculer dans l'environnement *Production* (changement de base URL côté Amadeus, géré par l'app). |
-
-### 4.3 LiteAPI — disponibilité hôtels (alternative)
-
-**À quoi ça sert** : remplaçant d'Amadeus si vous ne voulez pas créer de
-compte Amadeus, ou si vous préférez son catalogue de tarifs temps réel.
-Utilisé **uniquement si Amadeus n'est pas configuré**.
+**À quoi ça sert** : recherche temps réel d'hôtels (3M+ établissements) le
+long de l'itinéraire, classés sans exclusion. Lecture seule.
 
 | Étape | Action |
 |---|---|
 | 1 | Créer un compte sur **<https://www.liteapi.travel>** (Developer Dashboard). |
-| 2 | Créer une application → récupérer la **clé API**. |
+| 2 | Créer une application → récupérer la **clé Sandbox**. |
 | 3 | Poser `LITEAPI_KEY=…`. |
+| 4 | Sandbox : **5 req/s**, **données live**, flux booking testable sans réservation/paiement réel. Quota largement suffisant pour un usage particulier avec le cache TTL 10 min. |
 
-> Si vous configurez Amadeus **et** LiteAPI, Amadeus a la priorité.
+> **Production (entreprise uniquement)** : 27 000 req/min, vraies réservations.
+> Inaccessible aux particuliers (nécessite une structure juridique commerciale)
+> — c'est volontaire. La sandbox couvre 100 % du besoin d'Odyssée.
+
+### 4.3 Hotelbeds APItude — disponibilité hôtels (alternative)
+
+**À quoi ça sert** : seconde source de disponibilité, indépendante de LiteAPI.
+Utilisée **uniquement si LiteAPI n'est pas configuré**.
+
+| Étape | Action |
+|---|---|
+| 1 | Créer un compte sur **<https://developer.hotelbeds.com>**. |
+| 2 | Créer une application → récupérer **API Key** et **API Secret**. |
+| 3 | Poser `HOTELBEDS_API_KEY` et `HOTELBEDS_API_SECRET`. |
+| 4 | Test env : **50 req/jour**, serveurs **identiques à la prod** pour la recherche (mêmes données live), bookings neutralisés. |
+| 5 | Laisser `HOTELBEDS_USE_TEST_ENV=true` (défaut). Production = contrat commercial + certification — réservé aux entreprises. |
+
+> Auth : HMAC SHA-256(apiKey + secret + timestamp) en header `X-Signature`,
+> recalculée à chaque requête. Le code de l'app le gère côté serveur.
 
 ### 4.4 OpenAgenda — événements datés (synthèse S3)
 
@@ -302,18 +324,19 @@ de manière déterministe. Idéal pour démos, présentations, et tests.
 NEXT_PUBLIC_APP_MODE=mock
 ```
 
-### Recette B — Live « essentiel » (IA + hôtels)
+### Recette B — Live « essentiel » (IA + hôtels sandbox)
 
-Activer Claude pour la génération d'itinéraires et un fournisseur de
-disponibilité hôtels. Couvre 80 % de la valeur perçue.
+Activer Claude pour la génération d'itinéraires et la disponibilité hôtels en
+sandbox temps réel (LiteAPI ou Hotelbeds — données live, sans pouvoir
+réserver, exactement ce qu'il faut pour un particulier).
 
 ```bash
 NEXT_PUBLIC_APP_MODE=live
 ANTHROPIC_API_KEY=sk-ant-…
-AMADEUS_CLIENT_ID=…
-AMADEUS_CLIENT_SECRET=…
+LITEAPI_KEY=…
 # OU (alternative)
-# LITEAPI_KEY=…
+# HOTELBEDS_API_KEY=…
+# HOTELBEDS_API_SECRET=…
 ```
 
 ### Recette C — Live « voyage réel » (avec véhicule Tesla)
@@ -323,8 +346,7 @@ B + Tesla Fleet API pour lire le vrai SoC du véhicule au moment du départ.
 ```bash
 NEXT_PUBLIC_APP_MODE=live
 ANTHROPIC_API_KEY=sk-ant-…
-AMADEUS_CLIENT_ID=…
-AMADEUS_CLIENT_SECRET=…
+LITEAPI_KEY=…
 TESLA_CLIENT_ID=…
 TESLA_CLIENT_SECRET=…
 TESLA_REDIRECT_URI=https://votre-domaine.example/api/tesla/callback
@@ -400,8 +422,9 @@ npx wrangler pages deploy .next
       sinon — la source est affichée).
 - [ ] `/composer` compose des voyages ; « Enrichir le récit (IA) » répond
       (gabarit gratuit si pas de clé, Claude sinon).
-- [ ] `/hebergements` renvoie des offres ; la **source** affichée est `mock`
-      ou `Amadeus` / `LiteAPI`.
+- [ ] `/hebergements` renvoie des offres ; la **source** affichée est `mock`,
+      `LiteAPI` ou `Hotelbeds Test`. Pour les sandbox, la `notes` rappelle
+      explicitement le quota et l'absence de réservation.
 - [ ] `/lieux` liste des POI avec horaires et source.
 - [ ] *(Si Tesla configuré)* `/parametres` → *Connecter mon compte Tesla* →
       consentement Tesla → retour à `/parametres` → SoC affiché.
@@ -425,12 +448,15 @@ npx wrangler pages deploy .next
 ### Hôtels : « toujours en source `mock` »
 
 - Vérifier `NEXT_PUBLIC_APP_MODE=live`.
-- Côté Amadeus : vérifier que vous êtes en environnement *Production* (pas
-  *Test*) si vous déployez en prod, et que le quota mensuel n'est pas dépassé.
-- En cas de quota dépassé : repli mock automatique et honnête (la fraîcheur
-  `readAt` est conservée).
+- Vérifier que `LITEAPI_KEY` **ou** (`HOTELBEDS_API_KEY` + `HOTELBEDS_API_SECRET`)
+  est bien posée côté serveur. LiteAPI prime sur Hotelbeds.
+- Quotas sandbox : LiteAPI = 5 req/s ; Hotelbeds Test = 50 req/jour. Au-delà,
+  repli mock automatique et honnête (la fraîcheur `readAt` est conservée).
 - Cache : `LODGING_AVAILABILITY_TTL_SECONDS` (défaut 10 min) — pour forcer un
   rafraîchissement, baisser temporairement à `0`.
+- Pour Hotelbeds, vérifier que l'horloge serveur est à l'heure : la signature
+  HMAC inclut un timestamp Unix, un décalage de plus de quelques secondes
+  fait échouer l'auth.
 
 ### Tesla : `403 — Account must be registered in the current region`
 

@@ -46,13 +46,13 @@ export interface HotelOffer {
   rating?: number
   amenities?: HotelAmenities
   sourceStatus: SourceStatus
-  /** Nom de la source temps réel : "mock" | "Amadeus" | "LiteAPI". */
+  /** Nom de la source temps réel : "mock" | "LiteAPI" | "Hotelbeds Test" | "Hotelbeds". */
   sourceName: string
   /** Horodatage ISO de la fraîcheur de la donnée. */
   readAt: string
 }
 
-export type AvailabilityMode = "mock" | "amadeus" | "liteapi"
+export type AvailabilityMode = "mock" | "liteapi" | "hotelbeds"
 
 export interface AvailabilityResult {
   offers: HotelOffer[]

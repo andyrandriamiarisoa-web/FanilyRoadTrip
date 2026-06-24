@@ -4,8 +4,8 @@ import { searchAvailabilityWithFallback } from "@/lib/lodging/availability"
 
 /**
  * Recherche de **disponibilité hôtels** (Lot R5) — read-only strict.
- * Mock par défaut ; Amadeus en live (clé serveur) avec repli mock honnête.
- * Aucun endpoint de réservation/paiement n'est exposé.
+ * Mock par défaut ; LiteAPI sandbox ou Hotelbeds (env. de test) en live, avec
+ * repli mock honnête. Aucun endpoint de réservation/paiement n'est exposé.
  */
 export async function POST(req: Request) {
   try {

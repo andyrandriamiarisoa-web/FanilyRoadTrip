@@ -27,10 +27,10 @@ function formatFreshness(iso: string): string {
 }
 
 /**
- * Recherche de **disponibilité hôtels** (Lot R5) — read-only. Mock par défaut
- * (clé Amadeus en live). On **classe sans exclure** (les complets restent
- * affichés et signalés) ; la **source** et la **fraîcheur** sont toujours
- * indiquées ; aucune action de réservation n'est exposée.
+ * Recherche de **disponibilité hôtels** (Lot R5) — read-only. Mock par défaut ;
+ * LiteAPI sandbox ou Hotelbeds Test en live. On **classe sans exclure** (les
+ * complets restent affichés et signalés) ; la **source** et la **fraîcheur**
+ * sont toujours indiquées ; aucune action de réservation n'est exposée.
  */
 export function LodgingAvailabilitySearch() {
   // Défauts : Marseille 7–9/08/2026 (cf. critère R5).
