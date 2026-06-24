@@ -21,30 +21,66 @@ test("home page exposes a main landmark", async ({ page }) => {
 })
 
 // ---------------------------------------------------------------------------
-// Plan generation page
+// Plan — deux modes : voyage planifié (A) et voyage avec ancre (B)
 // ---------------------------------------------------------------------------
 
-test("plan page shows generate button and trip summary", async ({ page }) => {
-  await page.goto("/plan")
-  await expect(page).toHaveTitle(/Générer/)
-  await expect(page.getByRole("button", { name: /générer/i })).toBeVisible()
-  // Shows reference trip info (appears in both the intro and the summary card)
-  await expect(page.getByText(/Fresnes/i).first()).toBeVisible()
-})
+test("plan page — affiche les deux modes et le sélecteur radio", async ({ page }) => {
+  await page.goto("/plan");
+  await expect(page).toHaveTitle(/Planifier/);
 
-test("plan generation flow — mock mode returns a trip plan", async ({ page }) => {
-  await page.goto("/plan")
+  // Sélecteur radio accessible avec les deux modes.
+  const radiogroup = page.getByRole("radiogroup", { name: /choisir un mode/i });
+  await expect(radiogroup).toBeVisible();
+  await expect(page.getByRole("radio", { name: /voyage planifié/i })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /voyage avec ancre/i })).toBeVisible();
 
-  // Click generate
-  const btn = page.getByRole("button", { name: /générer/i })
-  await btn.click()
+  // Mode A actif par défaut : son formulaire est visible.
+  await expect(page.getByRole("heading", { name: /^voyage planifié$/i })).toBeVisible();
+});
 
-  // Success state shows "Plan généré !" (mock mode is fast, allow up to 15s)
-  await expect(page.getByText(/plan généré/i)).toBeVisible({ timeout: 15_000 })
+test("plan — Mode A : générer l'itinéraire (mock) produit un brouillon éditable", async ({ page }) => {
+  await page.goto("/plan");
 
-  // ...then auto-redirects to the carnet de route after ~1.5s
-  await expect(page).toHaveURL(/\/carnet/, { timeout: 10_000 })
-})
+  // Mode A est actif par défaut. On remplit le formulaire.
+  await page.getByLabel(/point de départ/i).fill("Paris");
+  await page.getByLabel(/^destination$/i).fill("Marseille");
+  await page.getByLabel(/date de départ/i).fill("2026-08-01");
+  await page.getByLabel(/date de retour/i).fill("2026-08-07");
+
+  await page.getByRole("button", { name: /générer l['’]itinéraire/i }).click();
+
+  // Un brouillon structuré apparaît (mock en CI), avec le badge source.
+  await expect(page.getByText(/Brouillon —/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Démo \(mock\)/i)).toBeVisible();
+
+  // Le brouillon est éditable : on modifie le titre d'une journée.
+  const dayTitle = page.getByLabel(/^Titre du 2026-08-/i).first();
+  await expect(dayTitle).toBeVisible();
+  await dayTitle.fill("Ma journée personnalisée");
+  await expect(dayTitle).toHaveValue("Ma journée personnalisée");
+});
+
+test("plan — Mode B : bascule vers le formulaire d'ancre", async ({ page }) => {
+  await page.goto("/plan");
+
+  // Bascule sur Mode B et vérifie son formulaire spécifique.
+  await page.getByRole("radio", { name: /voyage avec ancre/i }).click();
+  await expect(page.getByRole("heading", { name: /^voyage avec ancre$/i })).toBeVisible();
+
+  // Champs spécifiques au Mode B.
+  await expect(page.getByLabel(/^intitulé$/i)).toBeVisible();
+  await expect(page.getByLabel(/au plus tôt/i)).toBeVisible();
+  await expect(page.getByLabel(/^min\. nuits$/i)).toBeVisible();
+
+  // Le bouton de composition est visible (désactivé tant que les champs ne sont pas remplis).
+  await expect(page.getByRole("button", { name: /composer mes voyages/i })).toBeVisible();
+});
+
+test("/composer redirige vers /plan", async ({ page }) => {
+  await page.goto("/composer");
+  await expect(page).toHaveURL(/\/plan$/);
+  await expect(page.getByRole("heading", { name: /planifier un voyage/i })).toBeVisible();
+});
 
 // ---------------------------------------------------------------------------
 // Carnet de route page
@@ -107,7 +143,8 @@ test("theme toggle switches between dark and light", async ({ page }) => {
 // Navigation — all main routes respond 200
 // ---------------------------------------------------------------------------
 
-const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline", "/lieux", "/hebergements", "/composer"]
+// `/composer` redirige vers `/plan` (mode B fusionné) — testé séparément.
+const MAIN_ROUTES = ["/", "/plan", "/carnet", "/parametres", "/offline", "/lieux", "/hebergements"]
 
 for (const route of MAIN_ROUTES) {
   test(`route ${route} responds 200`, async ({ request }) => {
@@ -174,101 +211,13 @@ test("clé publique Tesla absente → 404 en mode mock", async ({ request }) => 
   expect(res.status()).toBe(404)
 })
 
-// ---------------------------------------------------------------------------
-// Routage charge-aware (M4)
-// ---------------------------------------------------------------------------
-
-test("trajet charge-aware — calcule des arrêts de charge cohérents", async ({ page }) => {
-  await page.goto("/plan")
-
-  // La section RoutePlanner est présente.
-  await expect(page.getByRole("heading", { name: /trajet charge-aware/i })).toBeVisible()
-
-  // Calcule avec le SoC cible par défaut (90 % → arrivée 20 %).
-  await page.getByRole("button", { name: /calculer les arrêts de charge/i }).click()
-
-  // Au moins un arrêt Supercharger et le SoC d'arrivée apparaissent.
-  await expect(page.getByText(/Recharge —/i).first()).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText("Arrivée", { exact: true })).toBeVisible()
-  // Rappel de préconditionnement présent.
-  await expect(page.getByText(/préconditionner la batterie/i).first()).toBeVisible()
-})
-
-// ---------------------------------------------------------------------------
-// Fusion des contraintes (M5)
-// ---------------------------------------------------------------------------
-
-test("fusion des contraintes — canicule bloque la conduite 12h–16h", async ({ page }) => {
-  await page.goto("/plan")
-
-  // Active la canicule, puis calcule.
-  await page.getByRole("checkbox", { name: /canicule/i }).check()
-  await page.getByRole("button", { name: /calculer les arrêts de charge/i }).click()
-
-  // La chronologie heure par heure apparaît avec un blocage canicule.
-  await expect(page.getByRole("heading", { name: /chronologie heure par heure/i })).toBeVisible({
-    timeout: 10_000,
-  })
-  await expect(page.getByText(/Canicule — pas de conduite/i).first()).toBeVisible()
-})
-
-// ---------------------------------------------------------------------------
-// Hébergements & Workation (M6)
-// ---------------------------------------------------------------------------
-
-test("hébergement — conformité workation affichée et classée (non exclue)", async ({ page }) => {
-  // Génère le plan de référence puis ouvre une étape-nuit.
-  await page.goto("/plan")
-  await page.getByRole("button", { name: /générer le voyage/i }).click()
-  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
-
-  // Déplie une journée à Dijon (séjour avec hébergement).
-  await page.getByRole("button", { name: /dijon/i }).first().click()
-
-  // Le bloc de conformité télétravail apparaît (l'hébergement est classé,
-  // jamais éliminé — un statut de conformité est toujours affiché).
-  await expect(page.getByText(/Conformité télétravail/i).first()).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/Connectivité/i).first()).toBeVisible()
-})
-
-// ---------------------------------------------------------------------------
-// Génération d'itinéraire par IA (M7)
-// ---------------------------------------------------------------------------
-
-test("génération IA — propose un itinéraire structuré et éditable", async ({ page }) => {
-  await page.goto("/plan")
-
-  await expect(page.getByRole("heading", { name: /générer par ia/i })).toBeVisible()
-  await page.getByRole("button", { name: /proposer un itinéraire/i }).click()
-
-  // Un brouillon structuré apparaît (mode mock en CI) avec un jour daté.
-  await expect(page.getByText(/Brouillon —/i)).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/Démo \(mock\)/i)).toBeVisible()
-
-  // Le brouillon est éditable : on modifie le titre d'une journée.
-  const firstTitle = page.getByLabel(/Titre du 2026-08-03/i)
-  await expect(firstTitle).toBeVisible()
-  await firstTitle.fill("Ma journée personnalisée")
-  await expect(firstTitle).toHaveValue("Ma journée personnalisée")
-})
-
-// ---------------------------------------------------------------------------
-// Bureau partagé à proximité — assouplit le late checkout (feature)
-// ---------------------------------------------------------------------------
-
-test("bureau partagé proche — satisfait le poste de travail et assouplit le late checkout", async ({
-  page,
-}) => {
-  // Génère le plan puis ouvre l'étape Dijon (coworking à 7 min en skateboard).
-  await page.goto("/plan")
-  await page.getByRole("button", { name: /générer le voyage/i }).click()
-  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
-  await page.getByRole("button", { name: /dijon/i }).first().click()
-
-  // Le bureau partagé est mentionné et le late checkout est assoupli.
-  await expect(page.getByText(/bureau partagé/i).first()).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/assoupli/i).first()).toBeVisible()
-})
+// Note de couverture : les tests E2E qui dépendaient de l'ancien flux
+// `/plan → "Générer le voyage" → /carnet` (ChargePlanner, fusion canicule,
+// workation, bureau partagé, export ics, télétravail) ont été retirés avec
+// la refonte de `/plan` (Mode A / Mode B). La couverture unitaire (Vitest)
+// reste assurée pour `routing/`, `constraints/`, `lodging/workation` et
+// `calendar/ics`. Réintroduction E2E à prévoir si un bouton « Enregistrer
+// vers le carnet » est ajouté aux modes A/B.
 
 // ---------------------------------------------------------------------------
 // Budget & dépenses (M8)
@@ -343,22 +292,6 @@ test("réservations — extraction depuis un texte collé et agrégation", async
 })
 
 // ---------------------------------------------------------------------------
-// Export calendrier .ics (M9)
-// ---------------------------------------------------------------------------
-
-test("export calendrier .ics depuis le carnet", async ({ page }) => {
-  // Génère un plan puis exporte le calendrier.
-  await page.goto("/plan")
-  await page.getByRole("button", { name: /générer le voyage/i }).click()
-  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
-
-  const downloadPromise = page.waitForEvent("download")
-  await page.getByRole("button", { name: /calendrier \.ics/i }).click()
-  const download = await downloadPromise
-  expect(download.suggestedFilename()).toBe("odyssee-voyage.ics")
-})
-
-// ---------------------------------------------------------------------------
 // Collaboration — vote des activités (M9)
 // ---------------------------------------------------------------------------
 
@@ -423,24 +356,6 @@ test("lieux — recherche de POI ouverts avec horaires et source", async ({ page
 })
 
 // ---------------------------------------------------------------------------
-// Orchestration des jours de télétravail (R4)
-// ---------------------------------------------------------------------------
-
-test("télétravail — un jour travaillé affiche les deux pistes (coworking + famille)", async ({
-  page,
-}) => {
-  // Génère le plan puis ouvre une journée de télétravail (Lun–Jeu).
-  await page.goto("/plan")
-  await page.getByRole("button", { name: /générer le voyage/i }).click()
-  await expect(page).toHaveURL(/\/carnet/, { timeout: 15_000 })
-
-  // Le premier jour « Télétravail » (Dijon, lundi) expose les deux pistes.
-  await page.getByRole("button", { name: /télétravail/i }).first().click()
-  await expect(page.getByText(/Andy : coworking/i)).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/Famille : plan de visites/i)).toBeVisible()
-})
-
-// ---------------------------------------------------------------------------
 // Disponibilité hébergements (R5)
 // ---------------------------------------------------------------------------
 
@@ -464,43 +379,34 @@ test("hébergements — recherche dispo mock, classée, source affichée, sans r
 })
 
 // ---------------------------------------------------------------------------
-// Synthèse de voyage — Composer (S1–S3, S6)
+// Synthèse de voyage — Mode B sur /plan (S1–S3, S6)
 // ---------------------------------------------------------------------------
 
-test("composer — compose plusieurs voyages datés avec récit et cadran de dates", async ({
+test("plan — Mode B : compose plusieurs voyages datés à partir d'une ancre", async ({
   page,
 }) => {
-  await page.goto("/composer")
-  await expect(page.getByRole("heading", { name: /composer un voyage/i })).toBeVisible()
+  await page.goto("/plan");
+  await page.getByRole("radio", { name: /voyage avec ancre/i }).click();
 
-  await page.getByRole("button", { name: /composer mes voyages/i }).click()
+  // Renseigne une ancre simple : mariage à Marseille le 8 août 2026.
+  await page.getByLabel(/^intitulé$/i).fill("Mariage Marseille");
+  await page.getByLabel(/^ville$/i).fill("Marseille");
+  await page.getByLabel(/^date$/i).fill("2026-08-08");
 
-  // Plusieurs voyages composés, dates calculées, ambiances distinctes.
-  await expect(page.getByRole("heading", { name: /voyages composés/i })).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByText(/Le (Reposant|Découvreur|Sociable)/).first()).toBeVisible()
-  // Récit du voyage sélectionné + cadran de dates.
-  await expect(page.getByRole("heading", { name: /^Récit —/i })).toBeVisible()
-  await expect(page.getByRole("heading", { name: /bougeait les dates/i })).toBeVisible()
+  await page.getByLabel(/point de départ \(domicile\)/i).fill("Paris");
+  await page.getByLabel(/au plus tôt/i).fill("2026-08-01");
+  await page.getByLabel(/au plus tard/i).fill("2026-08-14");
 
-  // Enrichissement du récit (S6) — en mock, repli gabarit déterministe.
-  await page.getByRole("button", { name: /enrichir le récit/i }).click()
-  await expect(page.getByText(/Récit gabarit|Récit enrichi/i)).toBeVisible({ timeout: 10_000 })
-})
+  // Min/Max nuits : on garde les défauts (7 / 10).
 
-// ---------------------------------------------------------------------------
-// Graphe social géolocalisé — personnes-ancres (S5)
-// ---------------------------------------------------------------------------
+  await page.getByRole("button", { name: /composer mes voyages/i }).click();
 
-test("composer — ajouter une personne, persistée localement", async ({ page }) => {
-  await page.goto("/composer")
-  await page.getByLabel("Prénom").fill("TestAmi")
-  await page.getByRole("button", { name: /ajouter cette personne/i }).click()
-
-  // Apparaît dans la liste et survit à un rechargement (IndexedDB).
-  await expect(page.getByText(/TestAmi/i).first()).toBeVisible({ timeout: 10_000 })
-  await page.reload()
-  await expect(page.getByText(/TestAmi/i).first()).toBeVisible({ timeout: 10_000 })
-})
+  // Le solveur compose plusieurs candidats datés avec ambiances distinctes.
+  await expect(page.getByRole("heading", { name: /voyages composés/i })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText(/Le (Reposant|Découvreur|Sociable|Thématique)/).first()).toBeVisible();
+});
 
 // ---------------------------------------------------------------------------
 // Durcissement sécurité — en-têtes HTTP (M10)
