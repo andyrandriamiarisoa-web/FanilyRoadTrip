@@ -26,8 +26,8 @@ export default function HomePage() {
           className="text-lg leading-relaxed"
           style={{ color: "var(--text-secondary)" }}
         >
-          Votre carnet de route sur mesure — Tesla, bébé, spondylarthrite,
-          télétravail. Un voyage pensé pour vous.
+          Votre carnet de route sur mesure — recharges Tesla, contraintes bébé,
+          médicales et télétravail prises en compte automatiquement.
         </p>
       </div>
 
@@ -41,7 +41,7 @@ export default function HomePage() {
             color: "var(--text-on-amber)",
           }}
         >
-          Générer le voyage de référence
+          Planifier mon voyage
         </Link>
       </div>
 
