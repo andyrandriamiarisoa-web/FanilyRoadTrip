@@ -67,10 +67,16 @@ test("plan — Mode B : bascule vers le formulaire d'ancre", async ({ page }) =>
   await page.getByRole("radio", { name: /voyage avec ancre/i }).click();
   await expect(page.getByRole("heading", { name: /^voyage avec ancre$/i })).toBeVisible();
 
-  // Champs spécifiques au Mode B.
+  // Champs spécifiques au Mode B (ancre + fenêtre).
   await expect(page.getByLabel(/^intitulé$/i)).toBeVisible();
   await expect(page.getByLabel(/au plus tôt/i)).toBeVisible();
-  await expect(page.getByLabel(/^min\. nuits$/i)).toBeVisible();
+
+  // Sélecteur d'intention de voyage (remplace les min/max nuits visibles par défaut).
+  await expect(
+    page.getByRole("radiogroup", { name: /choisir une intention de voyage/i }),
+  ).toBeVisible();
+  await expect(page.getByRole("radio", { name: /maximiser le temps de voyage/i })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /au plus rapide/i })).toBeVisible();
 
   // Le bouton de composition est visible (désactivé tant que les champs ne sont pas remplis).
   await expect(page.getByRole("button", { name: /composer mes voyages/i })).toBeVisible();
@@ -389,15 +395,19 @@ test("plan — Mode B : compose plusieurs voyages datés à partir d'une ancre",
   await page.getByRole("radio", { name: /voyage avec ancre/i }).click();
 
   // Renseigne une ancre simple : mariage à Marseille le 8 août 2026.
+  // L'ancre supporte maintenant un bloc multi-jour (Du / Au) — pour un
+  // événement ponctuel, on laisse Au = Du (recalé automatiquement par
+  // l'UI quand on saisit Du).
   await page.getByLabel(/^intitulé$/i).fill("Mariage Marseille");
   await page.getByLabel(/^ville$/i).fill("Marseille");
-  await page.getByLabel(/^date$/i).fill("2026-08-08");
+  await page.getByLabel(/^du$/i).fill("2026-08-08");
 
   await page.getByLabel(/point de départ \(domicile\)/i).fill("Paris");
   await page.getByLabel(/au plus tôt/i).fill("2026-08-01");
   await page.getByLabel(/au plus tard/i).fill("2026-08-14");
 
-  // Min/Max nuits : on garde les défauts (7 / 10).
+  // Intention par défaut : « Maximiser le temps de voyage » — le solveur
+  // explore toute la fenêtre, pas besoin de saisir min/max nuits.
 
   await page.getByRole("button", { name: /composer mes voyages/i }).click();
 
