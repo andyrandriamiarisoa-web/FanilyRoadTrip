@@ -11,90 +11,18 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { loadActiveProfile } from "@/lib/db";
-import { geocodeCity } from "@/lib/routing/geocode";
-import type {
-  Anchor,
-  HouseholdConstraints,
-  Opportunity,
-  SynthesisRequest,
-  TripCandidate,
-} from "@/lib/synthesis/types";
+import type { TripCandidate } from "@/lib/synthesis/types";
 import type { DateOption } from "@/lib/synthesis/date-flex";
-import type { FamilyProfile } from "@/types";
 import type { AnchoredFormState, TripIntent } from "@/lib/saved-trips/types";
-import { nightsFromIntent } from "@/lib/saved-trips/types";
+import { buildSynthesisRequest } from "@/lib/saved-trips/request-builders";
 import { CityAutocomplete } from "./CityAutocomplete";
-import { StopList, type PlanStop } from "./StopList";
+import { StopList } from "./StopList";
 
 const inputStyle: React.CSSProperties = {
   background: "var(--bg-base)",
   color: "var(--text-primary)",
   border: "1px solid var(--border-default)",
 };
-
-const WEEKDAY_TO_NUM: Record<string, number> = {
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-  sunday: 7,
-};
-
-function hhmm(h: number): string {
-  const hours = Math.floor(h);
-  const mins = Math.round((h - hours) * 60);
-  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-}
-
-function constraintsFromProfile(p: FamilyProfile): HouseholdConstraints {
-  return {
-    babyPauseEveryMin: p.baby.maxLegMinutes,
-    babyPauseDurationMin: 15,
-    maxDrivePerDayMin: 300,
-    workDays: p.work.workDays
-      .map((d) => WEEKDAY_TO_NUM[d])
-      .filter((n): n is number => typeof n === "number"),
-    workStart: hhmm(p.work.workStartHour),
-    workEnd: hhmm(p.work.workEndHour),
-    caniculeNoDrive: {
-      start: hhmm(p.driving.noHeatDrivingRange[0]),
-      end: hhmm(p.driving.noHeatDrivingRange[1]),
-    },
-  };
-}
-
-function slug(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function stopToOpportunity(stop: PlanStop, index: number): Opportunity | null {
-  const geo = geocodeCity(stop.city);
-  if (!geo) return null;
-  const nights = Math.max(0, stop.nights);
-  const durationMin = Math.max(120, nights * 240 + 120);
-  return {
-    id: `user-stop-${index}-${slug(stop.city)}`,
-    title: `${stop.city} (étape souhaitée${nights > 0 ? ` · ${nights} nuit${nights > 1 ? "s" : ""}` : ""})`,
-    category: "attraction",
-    location: { lat: geo.lat, lng: geo.lng },
-    score: 1,
-    durationMin,
-    timeWindow: stop.fixedDate
-      ? { start: stop.fixedDate, end: stop.fixedDate }
-      : undefined,
-    indoor: false,
-    babyFriendly: true,
-    source: "saisie utilisateur",
-    sourceStatus: "verified",
-  };
-}
 
 interface AnchoredTripFormProps {
   value: AnchoredFormState;
@@ -141,63 +69,19 @@ export function AnchoredTripForm({
     setLoading(true);
     setError(null);
     try {
-      const anchorGeo = geocodeCity(value.anchorCity);
-      if (!anchorGeo) throw new Error(`Ville inconnue pour l'ancre : ${value.anchorCity}`);
-      const originGeo = geocodeCity(value.originCity);
-      if (!originGeo) throw new Error(`Ville inconnue pour le départ : ${value.originCity}`);
-
       const profile = await loadActiveProfile();
 
-      const anchor: Anchor = {
-        id: `user-anchor-${slug(value.anchorTitle)}`,
-        kind: "event",
-        title: value.anchorTitle.trim(),
-        location: { lat: anchorGeo.lat, lng: anchorGeo.lng },
-        start: `${value.anchorStartDate}T${value.anchorStartTime}:00`,
-        // Pour un séjour multi-jour, la fin est sur `effectiveAnchorEnd` ;
-        // sinon (événement ponctuel), même date. Le solveur détecte
-        // automatiquement la durée < 24h pour rester en mono-jour.
-        end: `${effectiveAnchorEnd}T${value.anchorEndTime}:00`,
-        source: "saisie utilisateur",
-        sourceStatus: "verified",
-      };
-
-      // Calcule les bornes de nuits depuis l'intention choisie.
-      const { minNights, maxNights } = nightsFromIntent({
-        intent: value.intent,
-        earliestStart: value.earliestStart,
-        latestEnd: value.latestEnd,
-        anchorStartDate: value.anchorStartDate,
-        anchorEndDate: effectiveAnchorEnd,
-        minNights: value.minNights,
-        maxNights: value.maxNights,
-      });
-
-      const opportunities: Opportunity[] = value.stops
-        .map((s, i) => stopToOpportunity(s, i))
-        .filter((o): o is Opportunity => o !== null);
-      const unknownStops = value.stops
-        .filter((s) => s.city.trim().length > 0)
-        .filter((s) => !geocodeCity(s.city));
-
-      const req: SynthesisRequest = {
-        anchors: [anchor],
-        opportunities,
-        people: [],
-        window: {
-          origin: { lat: originGeo.lat, lng: originGeo.lng },
-          earliestStart: value.earliestStart,
-          latestEnd: value.latestEnd,
-          minNights,
-          maxNights,
-        },
-        constraints: constraintsFromProfile(profile),
-      };
+      // Source unique de construction de la requête (partagée avec le journal
+      // de debug → ce qu'on rejoue est exactement ce qu'on envoie).
+      const built = buildSynthesisRequest(value, profile);
+      if (built.error || !built.request) {
+        throw new Error(built.error ?? "Requête de synthèse invalide");
+      }
 
       const res = await fetch("/api/synthesis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(req),
+        body: JSON.stringify(built.request),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Erreur de synthèse");
@@ -205,9 +89,9 @@ export function AnchoredTripForm({
         candidates: (data.candidates ?? []) as TripCandidate[],
         dateOptions: (data.dateOptions ?? []) as DateOption[],
       });
-      if (unknownStops.length > 0) {
+      if (built.unknownStops.length > 0) {
         setError(
-          `Étape(s) ignorée(s) (ville inconnue de la table seed) : ${unknownStops.map((s) => s.city).join(", ")}`,
+          `Étape(s) ignorée(s) (ville inconnue de la table seed) : ${built.unknownStops.join(", ")}`,
         );
       }
     } catch (err) {

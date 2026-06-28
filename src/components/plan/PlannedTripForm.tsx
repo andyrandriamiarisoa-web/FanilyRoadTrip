@@ -12,11 +12,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { loadActiveProfile } from "@/lib/db";
-import { summarizeProfile } from "@/lib/profile/profile";
 import type { AiItineraryDraft } from "@/lib/agents/itinerary-types";
 import type { PlannedFormState } from "@/lib/saved-trips/types";
+import { buildItineraryRequestBody } from "@/lib/saved-trips/request-builders";
 import { CityAutocomplete } from "./CityAutocomplete";
-import { StopList, type PlanStop } from "./StopList";
+import { StopList } from "./StopList";
 
 const inputStyle: React.CSSProperties = {
   background: "var(--bg-base)",
@@ -30,19 +30,6 @@ interface PlannedTripFormProps {
   onDraft: (draft: AiItineraryDraft, source: "ai" | "mock") => void;
   /** True quand un voyage est déjà ouvert (modifie le libellé du bouton). */
   hasExisting: boolean;
-}
-
-function formatStopsForPrompt(stops: PlanStop[]): string {
-  if (stops.length === 0) return "";
-  const lines = stops
-    .filter((s) => s.city.trim().length > 0)
-    .map((s) => {
-      const nights = s.nights > 0 ? `${s.nights} nuit${s.nights > 1 ? "s" : ""}` : "passage";
-      const fixed = s.fixedDate ? ` (fixé au ${s.fixedDate})` : "";
-      return `• ${s.city.trim()} — ${nights}${fixed}`;
-    });
-  if (lines.length === 0) return "";
-  return `\n\nÉtapes à respecter :\n${lines.join("\n")}`;
 }
 
 export function PlannedTripForm({
@@ -72,27 +59,13 @@ export function PlannedTripForm({
     setError(null);
     try {
       const profile = await loadActiveProfile();
-      const constraints = summarizeProfile(profile).map(
-        (l) => `${l.label} : ${l.value} — ${l.note}`,
-      );
-      const prefix = `Voyage de ${value.origin.trim()} à ${value.destination.trim()}, du ${value.dateFrom} au ${value.dateTo}.`;
-      const desiresClean = value.desires.trim();
-      const description =
-        prefix +
-        formatStopsForPrompt(value.stops) +
-        (desiresClean ? `\n\nEnvies : ${desiresClean}` : "");
+      // Source unique (partagée avec le journal de debug).
+      const body = buildItineraryRequestBody(value, profile);
 
       const res = await fetch("/api/agents/itinerary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description,
-          destination: value.destination.trim(),
-          dateFrom: value.dateFrom,
-          dateTo: value.dateTo,
-          constraints,
-          workDays: profile.work.workDays,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Génération impossible");
