@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import {
   getLatestTrip,
   getLodgingSelections,
@@ -9,6 +9,7 @@ import {
   loadActiveProfile,
   clearCarnet,
   listSavedTrips,
+  getSavedTrip,
   putLodgingSnapshot,
   clearLodgingSnapshots,
   listLodgingSnapshots,
@@ -18,6 +19,8 @@ import {
   snapshotAgeHours,
 } from "@/lib/saved-trips/refresh-lodging";
 import type { LodgingSnapshot } from "@/lib/saved-trips/types";
+import { buildDebugTrace, debugTraceFilename } from "@/lib/saved-trips/debug-trace";
+import { isDebugMode, subscribeDebugMode } from "@/lib/debug/debug-mode";
 import type { TripPlan, DayPlan, FamilyProfile } from "@/types";
 import type { Reservation } from "@/lib/reservations/reservation-types";
 import { WorkationTracks } from "@/components/workation/WorkationTracks";
@@ -50,6 +53,12 @@ export function RoadbookClient() {
   /** Snapshots de dispos hôtel par date (clé = date du jour). */
   const [snapshotsByDate, setSnapshotsByDate] = useState<Record<string, LodgingSnapshot>>({});
   const [refreshing, setRefreshing] = useState(false);
+
+  const debugEnabled = useSyncExternalStore(
+    subscribeDebugMode,
+    isDebugMode,
+    () => false,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -150,6 +159,43 @@ export function RoadbookClient() {
     }
   }
 
+  async function handleDownloadDebug() {
+    if (!plan || !profile) return;
+    // Le voyage sauvegardé lié porte la saisie + les candidats/brouillon.
+    const savedTrip = savedTripId ? await getSavedTrip(savedTripId) : null;
+    if (!savedTrip) {
+      setExportMsg(
+        "Journal indisponible : ce carnet n'est pas lié à un voyage sauvegardé. Recomposez-le depuis /plan.",
+      );
+      setTimeout(() => setExportMsg(null), 5000);
+      return;
+    }
+    const generatedAt = new Date().toISOString();
+    const trace = buildDebugTrace({
+      savedTrip,
+      tripPlan: plan,
+      profile,
+      lodgingSnapshots: Object.values(snapshotsByDate),
+      appMode: process.env.NEXT_PUBLIC_APP_MODE ?? "mock",
+      generatedAt,
+    });
+    const blob = new Blob([JSON.stringify(trace, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = debugTraceFilename(savedTrip, generatedAt);
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportMsg(
+      trace.warnings.length > 0
+        ? `Journal téléchargé (${trace.warnings.length} avertissement(s) inclus).`
+        : "Journal de debug téléchargé.",
+    );
+    setTimeout(() => setExportMsg(null), 4000);
+  }
+
   async function handleClear() {
     if (!plan) return;
     const ok = window.confirm(
@@ -237,6 +283,11 @@ export function RoadbookClient() {
             disabled={refreshing}
           >
             Rafraîchir les dispos hôtel
+          </Button>
+        )}
+        {debugEnabled && (
+          <Button variant="ghost" size="sm" onClick={handleDownloadDebug}>
+            Télécharger le journal de debug
           </Button>
         )}
         <Button variant="ghost" size="sm" onClick={handleClear}>

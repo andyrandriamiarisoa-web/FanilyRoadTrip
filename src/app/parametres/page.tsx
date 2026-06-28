@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { VehicleConnect } from "@/components/settings/VehicleConnect";
 import { TeslaSetupAssistant } from "@/components/settings/TeslaSetupAssistant";
+import { DebugModeToggle } from "@/components/settings/DebugModeToggle";
 
 export const metadata: Metadata = {
   title: "Paramètres",
@@ -24,6 +25,8 @@ export default function ParametresPage() {
       <VehicleConnect />
 
       <TeslaSetupAssistant />
+
+      <DebugModeToggle />
 
       <section className="card p-5 space-y-4">
         <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>

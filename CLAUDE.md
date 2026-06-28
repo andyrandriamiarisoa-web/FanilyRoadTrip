@@ -38,6 +38,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | U1 | **Refonte `/plan` mode production** (Mode A planifié / Mode B avec ancre, formulaires propres, voyage de référence hardcodé retiré) | ✅ |
 | V1 | **Voyages sauvegardés & refresh dispos hôtel** (store IndexedDB v8 `savedTrips`+`lodgingSnapshots`, page `/voyages`, édition d'un voyage existant, bouton « Envoyer au carnet », bouton « Rafraîchir les dispos hôtel ») | ✅ |
 | V2 | **Solveur ancre multi-jour + intention de voyage + carnet bâti depuis candidat** (séminaire/séjour pris en charge nativement par S7, toggle Maximiser/Au plus rapide/Sur mesure, retrait du hardcode mock-orchestrator sur la promotion) | ✅ |
+| V3 | **Mode debug + journal de création du carnet** (toggle `/parametres`, bouton `/carnet` → JSON reconstruit depuis le stockage : saisie, requête moteur, candidats/brouillon, TripPlan, snapshots dispos, avertissements) | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :
@@ -82,6 +83,21 @@ purs testés : `formStateToTripRequest` (Mode A/B → `TripRequest`, géocodage
 seed sans inventer de coords), `refreshLodgingForPlan` (fetch injecté),
 `snapshotAgeHours`. Anti-pattern #3 préservé partout : la source et le
 `readAt` sont obligatoirement visibles.
+
+**Mode debug & journal de carnet (V3)** : un drapeau local (`src/lib/debug/
+debug-mode.ts`, localStorage, jamais envoyé) activable depuis `/parametres`
+(`DebugModeToggle`). Quand actif, `/carnet` expose « **Télécharger le journal
+de debug** » → un JSON regroupant **tous les inputs/outputs** ayant servi à
+composer le voyage : saisie (`formState`), **requête moteur reconstruite** (synthèse
+Mode B ou IA Mode A), candidats/brouillon persistés, sélection, `TripPlan`
+final, snapshots de dispos hôtel, et une liste d'**avertissements** (profil
+modifié après promotion, villes non géocodables, nuits sans coordonnées,
+carnet ≠ voyage promu). Le journal est **reconstruit depuis le stockage**
+(`buildDebugTrace`, pur, testé) → disponible **rétroactivement** sans
+reproduire le cas. Pour garantir que la requête rejouée est *exactement* celle
+soumise, les builders de requête sont extraits dans un module pur partagé
+(`request-builders.ts` : `buildSynthesisRequest`, `buildItineraryRequestBody`)
+utilisé à la fois par les formulaires et le journal — source unique de vérité.
 
 **Profil Foyer (M1)** : le profil de référence (`src/data/default-profile.ts`) est
 copié dans IndexedDB au premier lancement, éditable depuis `/parametres`
