@@ -40,6 +40,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | V2 | **Solveur ancre multi-jour + intention de voyage + carnet bâti depuis candidat** (séminaire/séjour pris en charge nativement par S7, toggle Maximiser/Au plus rapide/Sur mesure, retrait du hardcode mock-orchestrator sur la promotion) | ✅ |
 | V3 | **Mode debug + journal de création du carnet** (toggle `/parametres`, bouton `/carnet` → JSON reconstruit depuis le stockage : saisie, requête moteur, candidats/brouillon, TripPlan, snapshots dispos, avertissements) | ✅ |
 | V4 | **Étapes garanties + corrections carnet** (étape saisie = `forced` jamais arbitrée par le knapsack, nuits sur place honorées, conflit explicite si infaisable ; noms de villes réels dans le carnet ; journal fidèle à la requête effective ; flag conduite > seuil ; **retour au point de départ** en fin de fenêtre ; Tesla : réveil explicite au lieu d'un faux 0 %) | ✅ |
+| V4.1 | **Découpe des longs trajets** (le solveur n'écrase plus un trajet sur une journée : plafond de conduite/jour **dérivé du Profil Foyer**, longs trajets répartis avec **nuits intermédiaires dans de vraies villes**, **arrivée à l'ancre avant son heure de début**, nuits d'étape honorées exactement — fini les jours « reposants » de 7 h de route) | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :
@@ -337,6 +338,26 @@ ni sur le serverless ; l'optimisation est donc faite en TS pur (knapsack DP),
 exacte sur ce modèle. **Backend ILP optionnel** (`ilp.ts`, glpk.js / GLPK WASM,
 import dynamique serveur) activable par `SYNTHESIS_SOLVER=ilp` — testé à parité
 exacte avec le DP, repli DP si le WASM échoue.
+
+**Découpe des longs trajets (V4.1)** : `layoutAligned` ne pose plus un long
+trajet sur une seule journée (un Dijon→Marseille de ~7 h 47 écrasé le jour de
+l'anniversaire, étiqueté « reposant »). Les phases **aller** et **retour** sont
+désormais une **conduite continue plafonnée** : `driveTowardWithin` conduit vers
+la prochaine étape sans dépasser le **plafond de conduite/jour** (pauses bébé +
+blocage canicule intégrés) ; si le plafond est atteint avant l'arrivée, la nuit
+se fait **en chemin, dans la ville connue la plus proche** (géocodage inverse
+injecté `adapters.geo`, alimenté par `FRENCH_CITIES` ; sans lui, coordonnée brute
+honnête sans nom — jamais de ville inventée). Le plafond est **dérivé du Profil
+Foyer** (`constraintsFromProfile` : `maxSegmentMinutes × 2`, plancher 180 min) au
+lieu d'un 300 codé en dur. L'**aller** progresse au plafond et **arrive à l'ancre
+la veille** (jamais de trajet qui chevauche l'heure de l'événement — signalé si
+la fenêtre est trop courte). Le **retour** est **étalé** pour rentrer au point de
+départ en fin de fenêtre (pas de fonçage suivi d'attente à la maison). Les nuits
+d'une étape garantie sont honorées **exactement** (fini l'entassement de 5 nuits
+à Dijon). Un jour travaillé n'autorise qu'un **court saut du soir** (≤ 90 min).
+Testé : `optimizer-leg-splitting.test.ts` (aucun jour > plafond, arrivée avant
+l'ancre, 2 nuits Dijon, nuits-étapes en vraies villes, retour à l'origine,
+fenêtre serrée signalée) + invariants S7 préservés.
 
 ## Commandes essentielles
 

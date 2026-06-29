@@ -56,7 +56,11 @@ export function constraintsFromProfile(p: FamilyProfile): HouseholdConstraints {
   return {
     babyPauseEveryMin: p.baby.maxLegMinutes,
     babyPauseDurationMin: 15,
-    maxDrivePerDayMin: 300,
+    // Plafond de conduite **par jour**, dérivé du Profil Foyer (au lieu d'un 300
+    // codé en dur). Au plus ~deux segments de conduite confortables (le segment
+    // max du profil) dans une journée — un trajet plus long est découpé par le
+    // solveur avec une nuit intermédiaire. Plancher de sécurité à 180 min.
+    maxDrivePerDayMin: Math.max(180, Math.round(p.driving.maxSegmentMinutes * 2)),
     workDays: p.work.workDays
       .map((d) => WEEKDAY_TO_NUM[d])
       .filter((n): n is number => typeof n === "number"),
