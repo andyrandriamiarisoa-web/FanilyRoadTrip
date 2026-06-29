@@ -312,35 +312,68 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
     .filter((o) => !out.includes(o))
     .sort((a, b) => projection(a.location, anchorLoc, win.origin) - projection(b.location, anchorLoc, win.origin));
 
-  // Total de nuits dérivé honnêtement des bornes (jamais de constante 14
-  // codée en dur — c'était l'ancienne dette qui produisait des voyages
-  // incohérents avec la saisie utilisateur).
-  const nightsRaw = Math.max(win.minNights, Math.min(win.maxNights, win.maxNights));
-  // Au moins assez de nuits pour contenir le bloc d'ancre + 1 nuit (arrivée).
-  const minRequiredNights = anchorDays; // dort sur place pendant le bloc
-  const nights = Math.max(nightsRaw, minRequiredNights);
-  if (nights < win.minNights) conflicts.push("Durée demandée écourtée pour tenir dans la fenêtre.");
+  // ── Positionnement **conscient des jours travaillés** ──────────────────────
+  // Un jour travaillé ne conduit qu'un court saut du soir (eveningCap), un jour
+  // libre conduit jusqu'au plafond. Un placement naïf (anchor − 40 %·budget)
+  // tombait sur des jours travaillés → le foyer n'avançait pas et entassait des
+  // heures le jour de l'événement. On dimensionne désormais l'aller/retour par
+  // la **capacité de conduite réelle** : on part assez tôt pour capter les
+  // week-ends et **arriver à l'ancre à l'heure**.
+  const approachMin = (await adapters.travel.estimate(win.origin, anchorLoc, isoDateTime(anchorStartDate, DAY_START_MIN))).minutes;
+  const returnMin = (await adapters.travel.estimate(anchorLoc, win.origin, isoDateTime(addDays(anchorEndDate, 1), DAY_START_MIN))).minutes;
 
-  // Décompose : nuits hors-bloc = aller + retour. Anchor block consomme
-  // (anchorDays - 1) nuits sur place. La nuit "de l'événement" est partagée
-  // avec le bloc (on dort à l'ancre la veille et après chaque jour du bloc).
-  const offBlockNights = Math.max(0, nights - (anchorDays - 1));
-  // Nuits « parking » des étapes garanties sur l'aller : elles **n'avancent pas**
-  // vers l'ancre (le foyer reste sur place). L'aller doit donc réserver des jours
-  // en plus — sinon un séjour (ex. Dijon 2 nuits) mange le temps de trajet et le
-  // foyer arrive en retard le jour de l'événement.
+  // Nuits « parking » des étapes garanties (elles n'avancent pas le long du corridor).
   const outStayExtra = out.reduce((s, o) => s + (o.forced ? Math.max(0, (o.stayNights ?? 0) - 1) : 0), 0);
-  // Répartition aller/retour : ~40/60 (un peu plus de retour pour la décompresse),
-  // + les nuits de séjour garanties de l'aller. Laisse au moins 1 nuit au retour.
-  let outboundDays = Math.max(1, Math.round(offBlockNights * 0.4) + outStayExtra);
-  outboundDays = Math.min(outboundDays, Math.max(1, offBlockNights - 1));
+  const backStayExtra = back.reduce((s, o) => s + (o.forced ? Math.max(0, (o.stayNights ?? 0) - 1) : 0), 0);
+
+  // Compte les jours nécessaires depuis `from` (dans le sens `step`) pour
+  // accumuler `need` minutes de conduite (chaque jour apporte sa capacité réelle),
+  // + `extraStay` nuits de séjour garanties. Borné par la fenêtre.
+  const fillDays = (from: string, step: 1 | -1, need: number, extraStay: number): number => {
+    const bound = step < 0 ? win.earliestStart : win.latestEnd;
+    let remaining = need;
+    let stay = extraStay;
+    let days = 0;
+    let d = from;
+    while ((remaining > 0 || stay > 0) && (step < 0 ? d >= bound : d <= bound)) {
+      if (remaining > 0) remaining -= dayCapFor(d);
+      else stay -= 1;
+      days += 1;
+      d = addDays(d, step);
+    }
+    return Math.max(1, days);
+  };
+
+  // Minimum **faisable** de jours (capte les week-ends en remontant depuis la veille).
+  const minOutboundDays = fillDays(addDays(anchorStartDate, -1), -1, approachMin, outStayExtra);
+  const minReturnDays = fillDays(addDays(anchorEndDate, 1), 1, returnMin, backStayExtra);
+  const minTotal = minOutboundDays + minReturnDays;
+
+  // Budget de nuits hors-bloc voulu par l'intention (maxNights). La faisabilité
+  // prime : on ne descend jamais sous le minimum (sinon arrivée en retard).
+  const nights = Math.max(win.maxNights, anchorDays);
+  const offBlockNights = Math.max(0, nights - (anchorDays - 1));
+  let outboundDays: number;
+  let returnDays: number;
+  if (offBlockNights <= minTotal) {
+    outboundDays = minOutboundDays;
+    returnDays = minReturnDays;
+  } else {
+    // Marge supplémentaire (« maximiser ») répartie ~40 % aller / 60 % retour.
+    const extra = offBlockNights - minTotal;
+    const addOut = Math.round(extra * 0.4);
+    outboundDays = minOutboundDays + addOut;
+    returnDays = minReturnDays + (extra - addOut);
+  }
+
   let startDate = addDays(anchorStartDate, -outboundDays);
   if (startDate < win.earliestStart) {
     startDate = win.earliestStart;
     outboundDays = Math.max(1, daysBetween(startDate, anchorStartDate));
+    // Capacité d'approche insuffisante même en partant au plus tôt : signalé par
+    // le bloc d'ancre (« approche non terminée / arrivée tardive »).
     conflicts.push("Date de départ ajustée au plus tôt autorisé.");
   }
-  let returnDays = Math.max(1, offBlockNights - outboundDays);
   let endDate = addDays(anchorEndDate, returnDays);
   if (endDate > win.latestEnd) {
     endDate = win.latestEnd;

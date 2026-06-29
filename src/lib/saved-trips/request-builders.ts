@@ -140,15 +140,22 @@ export function buildSynthesisRequest(
   // un 2–3 nuits qui ignore une étape « Dijon · 2 nuits »).
   const constraints = constraintsFromProfile(profile);
   const forcedStayNights = form.stops.reduce((sum, s) => sum + Math.max(0, s.nights), 0);
-  // Estimation **conservatrice** des nuits de trajet (vol d'oiseau ×1,3, ~90 km/h,
-  // sous le plafond conduite/jour) : un plancher faisable, pas une valeur exacte
-  // — le solveur affine et signale toute infaisabilité résiduelle.
+  // Estimation **conservatrice** des nuits de trajet (vol d'oiseau ×1,3, ~90 km/h).
+  // On pondère par le **rythme de télétravail** : un jour travaillé ne conduit
+  // qu'un court saut du soir (~90 min), un jour libre jusqu'au plafond. Sans cette
+  // pondération, « au plus rapide » sous-estimait (trajet supposé au plafond plein
+  // chaque jour) et produisait une fenêtre qui forçait un départ en semaine, donc
+  // une arrivée en retard. C'est un plancher honnête ; le solveur affine ensuite.
   let travelNights = 1;
   if (anchorGeo && originGeo) {
     const oneWayKm =
       haversineKm({ lat: originGeo.lat, lng: originGeo.lng }, { lat: anchorGeo.lat, lng: anchorGeo.lng }) * 1.3;
     const oneWayMin = (oneWayKm / 90) * 60;
-    travelNights = Math.max(1, Math.ceil((2 * oneWayMin) / constraints.maxDrivePerDayMin));
+    const workDayCount = constraints.workDays.length;
+    const eveningCap = Math.min(constraints.maxDrivePerDayMin, 90);
+    const avgDailyCap =
+      (workDayCount * eveningCap + (7 - workDayCount) * constraints.maxDrivePerDayMin) / 7;
+    travelNights = Math.max(1, Math.ceil((2 * oneWayMin) / Math.max(1, avgDailyCap)));
   }
 
   const derivedNights = nightsFromIntent({
