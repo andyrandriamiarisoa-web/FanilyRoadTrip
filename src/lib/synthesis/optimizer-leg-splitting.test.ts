@@ -158,6 +158,22 @@ describe("layoutAligned — découpe des longs trajets (cap conduite/jour)", () 
     expect(cand.conflicts.some((c) => /Approche|Arrivée/.test(c))).toBe(false);
   });
 
+  it("signale une étape garantie dont les nuits sont écourtées (collision bloc d'ancre)", async () => {
+    // Cas réel du log : « Au plus rapide » avait produit 2–3 nuits, trop court
+    // pour honorer les 2 nuits de Dijon + l'ancre. Dijon est alors visitée mais
+    // n'obtient qu'1 nuit — ce qui DOIT être signalé (contrat V4), jamais silencieux.
+    const shortWindow: VacationWindow = {
+      origin: FRESNES, earliestStart: "2026-07-31", latestEnd: "2026-08-16", minNights: 2, maxNights: 3,
+    };
+    const cand = await layoutAligned(
+      { anchor, selected: [dijon], window: shortWindow, constraints, ambiance: "reposant", label: "T" },
+      adapters,
+    );
+    const dijonNights = nightsAt(cand.days, DIJON);
+    expect(dijonNights).toBeLessThan(2); // fenêtre trop courte pour 2 nuits
+    expect(cand.conflicts.some((c) => /Dijon/.test(c) && /nuit/i.test(c))).toBe(true);
+  });
+
   it("signale honnêtement une fenêtre trop serrée pour découper (jamais masqué)", async () => {
     // 1 nuit autour de l'ancre : impossible d'arriver reposé → conflit explicite,
     // pas un trajet de 5 h écrasé en silence.

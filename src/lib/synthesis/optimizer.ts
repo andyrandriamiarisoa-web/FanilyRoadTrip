@@ -325,8 +325,15 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   // (anchorDays - 1) nuits sur place. La nuit "de l'événement" est partagée
   // avec le bloc (on dort à l'ancre la veille et après chaque jour du bloc).
   const offBlockNights = Math.max(0, nights - (anchorDays - 1));
-  // Répartition aller/retour : ~40/60 (un peu plus de retour pour la décompresse).
-  let outboundDays = Math.max(1, Math.round(offBlockNights * 0.4));
+  // Nuits « parking » des étapes garanties sur l'aller : elles **n'avancent pas**
+  // vers l'ancre (le foyer reste sur place). L'aller doit donc réserver des jours
+  // en plus — sinon un séjour (ex. Dijon 2 nuits) mange le temps de trajet et le
+  // foyer arrive en retard le jour de l'événement.
+  const outStayExtra = out.reduce((s, o) => s + (o.forced ? Math.max(0, (o.stayNights ?? 0) - 1) : 0), 0);
+  // Répartition aller/retour : ~40/60 (un peu plus de retour pour la décompresse),
+  // + les nuits de séjour garanties de l'aller. Laisse au moins 1 nuit au retour.
+  let outboundDays = Math.max(1, Math.round(offBlockNights * 0.4) + outStayExtra);
+  outboundDays = Math.min(outboundDays, Math.max(1, offBlockNights - 1));
   let startDate = addDays(anchorStartDate, -outboundDays);
   if (startDate < win.earliestStart) {
     startDate = win.earliestStart;
@@ -542,12 +549,27 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   }
 
   // Anti-pattern : jamais d'abandon silencieux d'une étape garantie. Si une
-  // étape forced saisie n'a pas pu être posée, on le dit explicitement.
+  // étape forced saisie n'a pas pu être posée — ou si ses nuits sur place ont
+  // été écourtées (collision avec le bloc d'ancre / fenêtre trop courte) — on le
+  // dit explicitement (contrat V4 : nuits honorées OU conflit explicite).
   for (const o of selected) {
-    if (o.forced && !includedOpportunityIds.includes(o.id)) {
+    if (!o.forced) continue;
+    if (!includedOpportunityIds.includes(o.id)) {
       conflicts.push(
         `Étape « ${o.title} » non placée dans la fenêtre — élargis les dates ou réduis les autres étapes.`,
       );
+      continue;
+    }
+    const wantNights = o.stayNights ?? 0;
+    if (wantNights > 0) {
+      const gotNights = days.filter((d) =>
+        d.stops.some((s) => s.kind === "night" && s.location && sameLoc(s.location, o.location)),
+      ).length;
+      if (gotNights < wantNights) {
+        conflicts.push(
+          `Étape « ${o.title} » : ${gotNights} nuit(s) sur place au lieu de ${wantNights} demandée(s) — fenêtre trop courte pour les honorer.`,
+        );
+      }
     }
   }
 

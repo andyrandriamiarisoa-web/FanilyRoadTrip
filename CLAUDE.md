@@ -41,6 +41,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | V3 | **Mode debug + journal de création du carnet** (toggle `/parametres`, bouton `/carnet` → JSON reconstruit depuis le stockage : saisie, requête moteur, candidats/brouillon, TripPlan, snapshots dispos, avertissements) | ✅ |
 | V4 | **Étapes garanties + corrections carnet** (étape saisie = `forced` jamais arbitrée par le knapsack, nuits sur place honorées, conflit explicite si infaisable ; noms de villes réels dans le carnet ; journal fidèle à la requête effective ; flag conduite > seuil ; **retour au point de départ** en fin de fenêtre ; Tesla : réveil explicite au lieu d'un faux 0 %) | ✅ |
 | V4.1 | **Découpe des longs trajets** (le solveur n'écrase plus un trajet sur une journée : plafond de conduite/jour **dérivé du Profil Foyer**, longs trajets répartis avec **nuits intermédiaires dans de vraies villes**, **arrivée à l'ancre avant son heure de début**, nuits d'étape honorées exactement — fini les jours « reposants » de 7 h de route) | ✅ |
+| V4.2 | **« Au plus rapide » faisable + plafond reposant + jours d'aller réservés** (l'intention « au plus rapide » réserve d'office ancre + nuits d'étapes garanties + trajet A/R minimal au lieu d'une fenêtre infaisable ; plafond conduite/jour borné à 5 h ; l'aller réserve les nuits de séjour garanties pour arriver à l'ancre à l'heure ; nuits d'étape écourtées explicitement signalées) | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :
@@ -358,6 +359,24 @@ d'une étape garantie sont honorées **exactement** (fini l'entassement de 5 nui
 Testé : `optimizer-leg-splitting.test.ts` (aucun jour > plafond, arrivée avant
 l'ancre, 2 nuits Dijon, nuits-étapes en vraies villes, retour à l'origine,
 fenêtre serrée signalée) + invariants S7 préservés.
+
+**Corrections « au plus rapide » + plafond reposant (V4.2)** : trois ajustements
+issus d'un journal de debug réel où « Au plus rapide » avait produit un voyage
+infaisable (2–3 nuits) ignorant une étape « Dijon · 2 nuits », avec une arrivée à
+l'anniversaire en pleine conduite. (1) **`nightsFromIntent("fastest")` est
+commitment-aware** (`types.ts`) : le plus court = ancre + nuits des étapes
+garanties + **trajet aller-retour minimal estimé** (`buildSynthesisRequest`
+calcule un plancher conservateur vol-d'oiseau ×1,3 sous le plafond/jour), jamais
+une fenêtre infaisable. (2) **Plafond conduite/jour borné à [180, 300] min**
+(`constraintsFromProfile`) : un `maxSegmentMinutes` élevé (×2) ne produit plus de
+journées de 6–7 h ; plafond « reposant » à 5 h (baisser `maxSegmentMinutes` pour
+plus doux). (3) **L'aller réserve les nuits de séjour garanties**
+(`outStayExtra` dans `layoutAligned`) : un séjour de 2 nuits ne mange plus le
+temps de trajet → le foyer arrive à l'ancre **à l'heure**. (4) **Nuits d'étape
+écourtées** (collision séjour garanti ↔ bloc d'ancre, fenêtre trop courte)
+désormais **signalées explicitement** (contrat V4 : honoré ou conflit, jamais
+silencieux). Tests : `request-builders.test.ts` (fastest faisable, plafond borné)
++ `optimizer-leg-splitting.test.ts` (nuits écourtées signalées).
 
 ## Commandes essentielles
 
