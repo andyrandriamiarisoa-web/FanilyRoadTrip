@@ -39,7 +39,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | V1 | **Voyages sauvegardés & refresh dispos hôtel** (store IndexedDB v8 `savedTrips`+`lodgingSnapshots`, page `/voyages`, édition d'un voyage existant, bouton « Envoyer au carnet », bouton « Rafraîchir les dispos hôtel ») | ✅ |
 | V2 | **Solveur ancre multi-jour + intention de voyage + carnet bâti depuis candidat** (séminaire/séjour pris en charge nativement par S7, toggle Maximiser/Au plus rapide/Sur mesure, retrait du hardcode mock-orchestrator sur la promotion) | ✅ |
 | V3 | **Mode debug + journal de création du carnet** (toggle `/parametres`, bouton `/carnet` → JSON reconstruit depuis le stockage : saisie, requête moteur, candidats/brouillon, TripPlan, snapshots dispos, avertissements) | ✅ |
-| V4 | **Étapes garanties + corrections carnet** (étape saisie = `forced` jamais arbitrée par le knapsack, nuits sur place honorées, conflit explicite si infaisable ; noms de villes réels dans le carnet ; journal fidèle à la requête effective ; flag conduite > seuil) | ✅ |
+| V4 | **Étapes garanties + corrections carnet** (étape saisie = `forced` jamais arbitrée par le knapsack, nuits sur place honorées, conflit explicite si infaisable ; noms de villes réels dans le carnet ; journal fidèle à la requête effective ; flag conduite > seuil ; **retour au point de départ** en fin de fenêtre ; Tesla : réveil explicite au lieu d'un faux 0 %) | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :

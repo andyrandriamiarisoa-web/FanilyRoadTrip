@@ -99,6 +99,28 @@ describe("layoutAligned — étape garantie", () => {
     expect(cand.conflicts.some((c) => /Dijon/.test(c) && /non placée/.test(c))).toBe(false);
   });
 
+  it("ramène le foyer au point de départ le dernier jour (jamais bloqué à l'ancre)", async () => {
+    const cand = await layoutAligned(
+      { anchor, selected: [forcedDijon], window, constraints, ambiance: "decouvreur", label: "T" },
+      adapters,
+    );
+    const lastDay = cand.days[cand.days.length - 1];
+    // Le dernier jour contient un trajet de retour OU une nuit à la maison,
+    // localisé au point de départ (Fresnes), pas à l'ancre (Marseille).
+    const homeStop = lastDay.stops.find(
+      (s) =>
+        (s.kind === "drive" || s.kind === "night") &&
+        s.location &&
+        Math.abs(s.location.lat - FRESNES.lat) < 0.05 &&
+        Math.abs(s.location.lng - FRESNES.lng) < 0.05,
+    );
+    expect(homeStop, "dernier jour ramené à l'origine").toBeDefined();
+    // La toute dernière localisation du voyage est le point de départ.
+    const lastLocated = [...lastDay.stops].reverse().find((s) => s.location)!;
+    expect(Math.abs(lastLocated.location!.lat - FRESNES.lat)).toBeLessThan(0.05);
+    expect(Math.abs(lastLocated.location!.lng - FRESNES.lng)).toBeLessThan(0.05);
+  });
+
   it("signale explicitement une étape garantie infaisable (fenêtre trop courte)", async () => {
     // Fenêtre d'1 nuit autour de l'ancre : impossible de caser Dijon.
     const tightWindow: VacationWindow = {
