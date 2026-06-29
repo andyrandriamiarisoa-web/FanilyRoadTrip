@@ -28,7 +28,7 @@ import type {
   Anchor, Opportunity, VacationWindow, HouseholdConstraints,
   TripCandidate, PlannedDay, PlannedStop, LatLng, Ambiance,
 } from "./types";
-import type { SynthesisAdapters } from "./adapters";
+import type { SynthesisAdapters, GeoProvider } from "./adapters";
 import { curateSlot } from "./curation";
 import {
   projection, addDays, daysBetween, isoDateTime, weekday, parseHM,
@@ -111,23 +111,151 @@ export function selectOptimal(input: SelectionInput): Opportunity[] {
 
 const DAY_START_MIN = 9 * 60;
 const DAY_END_MIN = 20 * 60;
+/** Dernière minute de conduite tolérée en soirée (après le télétravail). */
+const EVENING_DRIVE_LIMIT_MIN = 21 * 60 + 30;
+/** Conduite maximale un jour travaillé : un court saut du soir, pas une étape. */
+const WORKDAY_EVENING_DRIVE_CAP = 90;
 
-/** Répartit un tableau ordonné en `groups` tranches contiguës aussi égales que possible. */
-function splitContiguous<T>(arr: T[], groups: number): T[][] {
-  const res: T[][] = [];
-  let idx = 0;
-  for (let g = 0; g < groups; g++) {
-    const count = Math.round((arr.length - idx) / (groups - g));
-    res.push(arr.slice(idx, idx + count));
-    idx += count;
-  }
-  return res;
+/** Point sur le segment droit `a→b` à la fraction `frac` (0..1). */
+function interpolate(a: LatLng, b: LatLng, frac: number): LatLng {
+  const f = Math.max(0, Math.min(1, frac));
+  return { lat: a.lat + (b.lat - a.lat) * f, lng: a.lng + (b.lng - a.lng) * f };
+}
+
+/**
+ * Ville connue la plus proche d'une coordonnée (pour nommer une nuit-étape).
+ * Sans `geo` injecté, renvoie la coordonnée brute sans nom — honnête, jamais
+ * une ville inventée.
+ */
+function snapCity(loc: LatLng, geo?: GeoProvider): { name?: string; location: LatLng } {
+  const hit = geo?.nearestCity(loc);
+  return hit ? { name: hit.name, location: hit.location } : { location: loc };
+}
+
+/** Deux coordonnées coïncident (à la précision flottante près). */
+function sameLoc(a: LatLng, b: LatLng): boolean {
+  return Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(a.lng - b.lng) < 1e-6;
 }
 
 function curatedFor(slot: "baby-pause" | "canicule", near: LatLng, pool?: Opportunity[]): PlannedStop["curated"] {
   if (!pool || pool.length === 0) return undefined;
   return curateSlot(slot, near, pool).slice(0, 3)
     .map((o) => ({ id: o.id, title: o.title, source: o.source, sourceStatus: o.sourceStatus }));
+}
+
+/** État courant de conduite pour une journée (lieu, horloge, conduite, pauses). */
+interface DriveCursor {
+  curLoc: LatLng;
+  /** Minutes depuis minuit. */
+  clock: number;
+  /** Minutes de conduite déjà effectuées **aujourd'hui** (comptent dans le plafond). */
+  dayDrive: number;
+  /** Minutes de conduite depuis la dernière pause bébé (réinitialisée la nuit). */
+  driveSinceBreak: number;
+}
+
+/**
+ * Conduit le foyer vers `target` **sans dépasser le plafond de conduite du jour**
+ * (`dayDriveCap`, en minutes de conduite cumulées sur la journée). Insère les
+ * pauses bébé et respecte le blocage canicule 12h–16h. Si le plafond est atteint
+ * avant l'arrivée, la conduite **s'arrête en chemin** : la nuit se fera à la
+ * ville connue la plus proche du point atteint (jamais une coordonnée inventée
+ * affichée comme une ville — `geo` injecté ; sinon coordonnée brute sans nom).
+ *
+ * C'est le cœur de la **découpe des longs trajets** : un Dijon→Marseille (~7 h 47)
+ * n'est plus écrasé sur une seule journée mais réparti, jour après jour, sous le
+ * plafond confort du Profil Foyer.
+ *
+ * Met `cursor` à jour et renvoie les stops à ajouter + `arrived`.
+ */
+async function driveTowardWithin(
+  cursor: DriveCursor,
+  target: LatLng,
+  targetTitle: string,
+  date: string,
+  dayDriveCap: number,
+  heat: boolean,
+  c: HouseholdConstraints,
+  adapters: SynthesisAdapters,
+  pool: Opportunity[] | undefined,
+): Promise<{ stops: PlannedStop[]; arrived: boolean }> {
+  const stops: PlannedStop[] = [];
+  const start = cursor.curLoc;
+  const est = await adapters.travel.estimate(start, target, isoDateTime(date, cursor.clock));
+  if (est.minutes <= 0) {
+    cursor.curLoc = target;
+    return { stops, arrived: true };
+  }
+
+  // Marge de conduite encore permise aujourd'hui (le plafond porte sur la journée).
+  const budget = dayDriveCap - cursor.dayDrive;
+  if (budget <= 0) return { stops, arrived: false };
+
+  // Blocage canicule 12h–16h : on n'entame ni ne poursuit la route dans la fenêtre.
+  const blockStart = parseHM(c.caniculeNoDrive.start);
+  const blockEnd = parseHM(c.caniculeNoDrive.end);
+  if (heat && cursor.clock < blockEnd && cursor.clock + Math.min(est.minutes, budget) > blockStart) {
+    stops.push({
+      title: "Conduite déconseillée (alerte canicule)",
+      kind: "canicule-block",
+      start: isoDateTime(date, Math.max(cursor.clock, blockStart)),
+      end: isoDateTime(date, blockEnd),
+      note: "Fenêtre 12h–16h évitée — alerte chaleur sur le segment.",
+      curated: curatedFor("canicule", cursor.curLoc, pool),
+    });
+    cursor.clock = Math.max(cursor.clock, blockEnd);
+  }
+
+  const driveStartClock = cursor.clock;
+  let remaining = est.minutes;
+  let driven = 0;
+  // Conduite par tranches bornées par : prochaine pause bébé, plafond du jour, arrivée.
+  while (remaining > 0 && driven < budget) {
+    if (cursor.driveSinceBreak >= c.babyPauseEveryMin) {
+      stops.push({
+        title: "Pause bébé", kind: "baby-pause",
+        start: isoDateTime(date, cursor.clock),
+        end: isoDateTime(date, cursor.clock + c.babyPauseDurationMin),
+        location: cursor.curLoc, curated: curatedFor("baby-pause", cursor.curLoc, pool),
+      });
+      cursor.clock += c.babyPauseDurationMin;
+      cursor.driveSinceBreak = 0;
+    }
+    const untilPause = c.babyPauseEveryMin - cursor.driveSinceBreak;
+    const chunk = Math.min(remaining, budget - driven, untilPause);
+    if (chunk <= 0) break;
+    cursor.clock += chunk;
+    cursor.dayDrive += chunk;
+    cursor.driveSinceBreak += chunk;
+    remaining -= chunk;
+    driven += chunk;
+  }
+
+  const arrived = remaining <= 0;
+  let endLoc: LatLng;
+  let endTitle: string;
+  if (arrived) {
+    endLoc = target;
+    endTitle = `Trajet vers ${targetTitle}`;
+  } else {
+    // Étape intermédiaire : on s'arrête à la ville connue la plus proche du
+    // point atteint pour y passer la nuit.
+    const frac = driven / est.minutes;
+    const snapped = snapCity(interpolate(start, target, frac), adapters.geo);
+    endLoc = snapped.location;
+    endTitle = snapped.name ? `Trajet — étape à ${snapped.name}` : "Trajet — étape intermédiaire";
+  }
+  // Arrêts recharge au prorata de la portion réellement parcourue.
+  const chargeStops = Math.round(est.chargeStops * (driven / est.minutes));
+  stops.push({
+    title: endTitle, kind: "drive",
+    start: isoDateTime(date, driveStartClock), end: isoDateTime(date, cursor.clock),
+    location: endLoc,
+    note: chargeStops > 0 ? `${chargeStops} arrêt(s) Superchargeur inclus` : undefined,
+    sourceStatus: est.sourceStatus,
+  });
+  cursor.curLoc = endLoc;
+  return { stops, arrived };
 }
 
 export interface AlignedLayoutParams {
@@ -161,8 +289,22 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   const anchorEndDate =
     anchorDurationMs >= 24 * 3_600_000 ? anchor.end.slice(0, 10) : anchorStartDate;
   const anchorDays = Math.max(1, daysBetween(anchorStartDate, anchorEndDate) + 1);
+  // Heure de début de l'événement (minutes depuis minuit) : on veut **arriver
+  // avant** — un trajet d'approche qui chevauche l'heure de l'ancre est faux.
+  const anchorStartMin = parseHM(anchor.start.slice(11, 16));
 
-  // Côté corridor : aller (origine→ancre) vs retour (ancre→origine).
+  // Plafond de conduite **par jour** (confort du Profil Foyer) — c'est le moteur
+  // de la découpe : aucun trajet ne dépasse ce plafond sur une seule journée.
+  const cap = Math.max(60, Math.round(c.maxDrivePerDayMin));
+  const workEndMin = parseHM(c.workEnd);
+  // Un jour travaillé : au plus un saut du soir (après le télétravail), borné
+  // par l'heure tardive limite — pas une étape complète.
+  const eveningCap = Math.max(0, Math.min(cap, WORKDAY_EVENING_DRIVE_CAP, EVENING_DRIVE_LIMIT_MIN - workEndMin));
+  /** Plafond de conduite du jour `date` (jour travaillé → saut du soir seulement). */
+  const dayCapFor = (date: string) => (c.workDays.includes(weekday(date)) ? eveningCap : cap);
+
+  // Côté corridor : aller (origine→ancre) vs retour (ancre→origine), ordonnés
+  // par progression le long de l'axe (on les atteint dans l'ordre géographique).
   const out = selected
     .filter((o) => projection(o.location, win.origin, anchorLoc) < 0.95)
     .sort((a, b) => projection(a.location, win.origin, anchorLoc) - projection(b.location, win.origin, anchorLoc));
@@ -199,116 +341,83 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
     conflicts.push("Date de retour ajustée au plus tard autorisé.");
   }
 
-  // On ne fait rouler le foyer **que les jours non travaillés** (Andy télétravaille
-  // les jours ouvrés → pas de longue route). Les opportunités du corridor sont donc
-  // réparties sur les jours non travaillés de chaque phase.
-  const outboundDates: string[] = [];
-  for (let d = 0; d < outboundDays; d++) outboundDates.push(addDays(startDate, d));
-  const returnDates: string[] = [];
-  for (let d = 1; d <= returnDays; d++) returnDates.push(addDays(anchorEndDate, d));
-
-  const isFree = (date: string) => !c.workDays.includes(weekday(date));
-  const drivingOut = outboundDates.filter(isFree);
-  const drivingReturn = returnDates.filter(isFree);
-  const outDays = drivingOut.length > 0 ? drivingOut : outboundDates;
-  const returnDriveDays = drivingReturn.length > 0 ? drivingReturn : returnDates;
-
-  // Allocation **étapes-garanties-aware** : une étape forced occupe son jour
-  // de visite + (stayNights-1) jours suivants (le foyer reste sur place → les
-  // nuits s'accumulent à cette localisation). Les opportunités optionnelles se
-  // répartissent sur les jours restants.
-  const assign = new Map<string, Opportunity[]>();
-  function allocate(stops: Opportunity[], dayList: string[]): Opportunity[] {
-    const forcedStops = stops.filter((s) => s.forced);
-    const optionalStops = stops.filter((s) => !s.forced);
-    const reserved = new Set<number>();
-    const leftover: Opportunity[] = [];
-    let cursor = 0;
-    for (const f of forcedStops) {
-      if (cursor >= dayList.length) { leftover.push(f); continue; }
-      const dayIdx = cursor;
-      assign.set(dayList[dayIdx], [...(assign.get(dayList[dayIdx]) ?? []), f]);
-      reserved.add(dayIdx);
-      const extra = Math.max(0, (f.stayNights ?? 0) - 1);
-      for (let k = 1; k <= extra && dayIdx + k < dayList.length; k++) reserved.add(dayIdx + k);
-      cursor = dayIdx + 1 + extra;
-    }
-    const freeDays = dayList.filter((_, i) => !reserved.has(i));
-    if (freeDays.length > 0 && optionalStops.length > 0) {
-      splitContiguous(optionalStops, freeDays.length).forEach((grp, i) => {
-        if (grp.length) assign.set(freeDays[i], [...(assign.get(freeDays[i]) ?? []), ...grp]);
-      });
-    } else {
-      leftover.push(...optionalStops);
-    }
-    return leftover;
-  }
-
-  const unplacedBack: Opportunity[] = [];
-  if (outDays.length > 0) {
-    allocate(out, outDays);
-  }
-  if (returnDriveDays.length > 0) {
-    unplacedBack.push(...allocate(back, returnDriveDays));
-  } else {
-    unplacedBack.push(...back);
-  }
-
   const days: PlannedDay[] = [];
   const includedOpportunityIds: string[] = [];
   let caniculeExposureDays = 0;
-  let curLoc: LatLng = win.origin;
-  let driveSinceBreak = 0;
   let anchorPlaced = false;
 
   const totalDays = daysBetween(startDate, endDate);
-  const isInAnchorBlock = (date: string) =>
-    date >= anchorStartDate && date <= anchorEndDate;
+  const isInAnchorBlock = (date: string) => date >= anchorStartDate && date <= anchorEndDate;
+
+  // Jours de conduite restants en phase retour (aujourd'hui inclus) — sert à
+  // **étaler** le retour pour rentrer en fin de fenêtre, au lieu de foncer puis
+  // de croupir à la maison.
+  const drivableReturnDaysFrom = (fromDate: string): number => {
+    let n = 0;
+    for (let dn = daysBetween(startDate, fromDate); dn <= totalDays; dn++) {
+      const d = addDays(startDate, dn);
+      if (d <= anchorEndDate) continue;
+      if (dayCapFor(d) > 0) n++;
+    }
+    return Math.max(1, n);
+  };
+
+  // État de progression le long du corridor (porté de jour en jour).
+  const cur: DriveCursor = { curLoc: win.origin, clock: DAY_START_MIN, dayDrive: 0, driveSinceBreak: 0 };
+  let wpOut = 0;          // prochaine étape aller à atteindre
+  let wpBack = 0;         // prochaine étape retour à atteindre
+  let parkDaysLeft = 0;   // nuits encore dues sur une étape garantie (foyer immobile)
+
+  /** Visite d'une opportunité atteinte (forced/personne : toujours ; optionnelle : si la journée ne déborde pas). */
+  const visitReached = (o: Opportunity, date: string, heat: boolean): PlannedStop[] => {
+    const isPerson = o.category === "people";
+    if (isPerson || o.forced || cur.clock + o.durationMin <= DAY_END_MIN) {
+      const stop: PlannedStop = {
+        opportunityId: o.id, title: o.title, kind: "visit",
+        start: isoDateTime(date, cur.clock), end: isoDateTime(date, cur.clock + o.durationMin),
+        location: o.location, source: o.source, sourceStatus: o.sourceStatus,
+        note: heat && o.indoor === false ? "Extérieur — prudence chaleur" : undefined,
+      };
+      cur.clock += o.durationMin;
+      includedOpportunityIds.push(o.id);
+      return [stop];
+    }
+    return [];
+  };
 
   for (let dayNo = 0; dayNo <= totalDays; dayNo++) {
     const date = addDays(startDate, dayNo);
     const isWorkday = c.workDays.includes(weekday(date));
-    const heat = await adapters.canicule.isHeatAlert(curLoc, date);
+    const heat = await adapters.canicule.isHeatAlert(cur.curLoc, date);
     if (heat) caniculeExposureDays++;
 
     const stops: PlannedStop[] = [];
-    let clock = DAY_START_MIN;
-    let dayDrive = 0;
+    // Nouvelle journée : l'horloge repart, la conduite du jour est remise à zéro,
+    // et la nuit a réinitialisé le compteur de pause bébé.
+    cur.clock = DAY_START_MIN;
+    cur.dayDrive = 0;
+    cur.driveSinceBreak = 0;
 
-    // ── Bloc d'ancre : foyer sur place, pas de route, événement le 1er jour
+    // ── Bloc d'ancre : foyer sur place, événement, nuit à proximité.
     if (isInAnchorBlock(date)) {
-      // Arrivée à l'ancre depuis ailleurs : ajoute le trajet juste avant
-      // d'entrer dans le bloc (premier jour seulement).
-      if (date === anchorStartDate && curLoc !== anchorLoc) {
-        const est = await adapters.travel.estimate(curLoc, anchorLoc, isoDateTime(date, clock));
-        // Conduite + pauses bébé (segments courts simplifiés).
-        let remaining = est.minutes;
-        while (driveSinceBreak + remaining > c.babyPauseEveryMin) {
-          const before = c.babyPauseEveryMin - driveSinceBreak;
-          clock += before; dayDrive += before; remaining -= before;
-          stops.push({
-            title: "Pause bébé", kind: "baby-pause",
-            start: isoDateTime(date, clock), end: isoDateTime(date, clock + c.babyPauseDurationMin),
-            location: curLoc, curated: curatedFor("baby-pause", curLoc, p.pool),
-          });
-          clock += c.babyPauseDurationMin; driveSinceBreak = 0;
+      // Filet de sécurité : si la fenêtre était trop courte pour arriver la
+      // veille, on termine l'approche le matin de l'événement — et on le
+      // **signale** si l'arrivée dépasse l'heure de début (jamais masqué).
+      if (date === anchorStartDate && !sameLoc(cur.curLoc, anchorLoc)) {
+        const res = await driveTowardWithin(cur, anchorLoc, anchor.title, date, cap, heat, c, adapters, p.pool);
+        stops.push(...res.stops);
+        if (!res.arrived) {
+          conflicts.push(
+            `Approche de « ${anchor.title} » non terminée avant l'événement — fenêtre trop courte pour un trajet reposant.`,
+          );
+        } else if (cur.clock > anchorStartMin) {
+          conflicts.push(
+            `Arrivée à « ${anchor.title} » le jour même, après l'heure de début — partez plus tôt ou ajoutez une nuit en chemin.`,
+          );
         }
-        if (remaining > 0) {
-          const driveStart = clock;
-          clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
-          stops.push({
-            title: `Trajet vers ${anchor.title}`, kind: "drive",
-            start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
-            location: anchorLoc,
-            note: est.chargeStops > 0 ? `${est.chargeStops} arrêt(s) Superchargeur inclus` : undefined,
-            sourceStatus: est.sourceStatus,
-          });
-        }
-        curLoc = anchorLoc;
+        cur.curLoc = anchorLoc;
       }
 
-      // Stop "anchor" : journée à l'événement (heures exactes le premier jour,
-      // ou journée entière 09–18h pour les jours suivants du bloc).
       if (date === anchorStartDate) {
         stops.push({
           title: anchor.title, kind: "anchor",
@@ -320,187 +429,117 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
         // Dernier jour du bloc — borne supérieure réelle.
         stops.push({
           title: `${anchor.title} — dernier jour`, kind: "anchor",
-          start: isoDateTime(date, parseHM("09:00")),
-          end: anchor.end,
-          location: anchor.location,
+          start: isoDateTime(date, parseHM("09:00")), end: anchor.end, location: anchor.location,
           source: anchor.source, sourceStatus: anchor.sourceStatus,
         });
       } else {
         // Jour intermédiaire du bloc : présence continue à l'ancre, 09h–18h.
         stops.push({
           title: `${anchor.title} — journée`, kind: "anchor",
-          start: isoDateTime(date, parseHM("09:00")),
-          end: isoDateTime(date, parseHM("18:00")),
-          location: anchor.location,
+          start: isoDateTime(date, parseHM("09:00")), end: isoDateTime(date, parseHM("18:00")), location: anchor.location,
           source: anchor.source, sourceStatus: anchor.sourceStatus,
         });
       }
 
       stops.push({
-        title: "Nuit (à proximité de l'événement)",
-        kind: "night",
-        start: isoDateTime(date, Math.max(clock, DAY_END_MIN)),
+        title: "Nuit (à proximité de l'événement)", kind: "night",
+        start: isoDateTime(date, Math.max(cur.clock, DAY_END_MIN)),
         end: isoDateTime(addDays(date, 1), DAY_START_MIN),
         location: anchorLoc,
       });
-
-      days.push({ date, isWorkday, stops, driveMinutes: dayDrive });
+      days.push({ date, isWorkday, stops, driveMinutes: cur.dayDrive });
       continue;
     }
 
-    // ── Journée normale (hors bloc d'ancre)
-    const targets: Opportunity[] = assign.get(date) ?? [];
+    const phase: "out" | "return" = date < anchorStartDate ? "out" : "return";
+    const isLastDay = date === endDate;
 
+    // Jour travaillé : bloc télétravail, la conduite ne peut commencer qu'après.
     if (isWorkday) {
       stops.push({
-        title: "Télétravail (Andy) — coworking à proximité",
-        kind: "work",
-        start: isoDateTime(date, parseHM(c.workStart)),
-        end: isoDateTime(date, parseHM(c.workEnd)),
-        location: curLoc,
+        title: "Télétravail (Andy) — coworking à proximité", kind: "work",
+        start: isoDateTime(date, parseHM(c.workStart)), end: isoDateTime(date, parseHM(c.workEnd)),
+        location: cur.curLoc,
         note: "Piste famille (coworking + visites) fournie par la couche curation (S4).",
-        curated: curatedFor("canicule", curLoc, p.pool),
+        curated: curatedFor("canicule", cur.curLoc, p.pool),
       });
-      clock = parseHM(c.workEnd);
+      cur.clock = workEndMin;
     }
 
-    // Aller vers les cibles du jour (opportunités).
-    const ordered: { loc: LatLng; opp?: Opportunity }[] =
-      targets.map((o) => ({ loc: o.location, opp: o }));
+    // Plafond de conduite du jour. En retour, on **étale** pour rentrer en fin
+    // de fenêtre (le dernier jour : plein régime confort pour boucler).
+    let dayCap = dayCapFor(date);
+    if (phase === "return" && !isLastDay) {
+      const remHome = (await adapters.travel.estimate(cur.curLoc, win.origin, isoDateTime(date, cur.clock))).minutes;
+      dayCap = Math.min(dayCap, Math.ceil(remHome / drivableReturnDaysFrom(date)));
+    } else if (phase === "return" && isLastDay) {
+      dayCap = cap;
+    }
 
-    for (const node of ordered) {
-      const est = await adapters.travel.estimate(curLoc, node.loc, isoDateTime(date, clock));
-
-      // Blocage canicule 12h–16h (jours d'alerte uniquement).
-      const blockStart = parseHM(c.caniculeNoDrive.start);
-      const blockEnd = parseHM(c.caniculeNoDrive.end);
-      if (est.minutes > 0 && heat && clock < blockEnd && clock + est.minutes > blockStart) {
-        stops.push({
-          title: "Conduite déconseillée (alerte canicule)",
-          kind: "canicule-block",
-          start: isoDateTime(date, Math.max(clock, blockStart)),
-          end: isoDateTime(date, blockEnd),
-          note: "Fenêtre 12h–16h évitée — alerte chaleur sur le segment.",
-          curated: curatedFor("canicule", curLoc, p.pool),
-        });
-        clock = Math.max(clock, blockEnd);
-      }
-
-      // Conduite + pauses bébé.
-      let remaining = est.minutes;
-      while (driveSinceBreak + remaining > c.babyPauseEveryMin) {
-        const before = c.babyPauseEveryMin - driveSinceBreak;
-        clock += before; dayDrive += before; remaining -= before;
-        stops.push({
-          title: "Pause bébé", kind: "baby-pause",
-          start: isoDateTime(date, clock), end: isoDateTime(date, clock + c.babyPauseDurationMin),
-          location: curLoc, curated: curatedFor("baby-pause", curLoc, p.pool),
-        });
-        clock += c.babyPauseDurationMin; driveSinceBreak = 0;
-      }
-      if (est.minutes > 0) {
-        const driveStart = clock;
-        clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
-        stops.push({
-          title: node.opp ? `Trajet vers ${node.opp.title}` : "Trajet",
-          kind: "drive",
-          start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
-          location: node.loc,
-          note: est.chargeStops > 0 ? `${est.chargeStops} arrêt(s) Superchargeur inclus` : undefined,
-          sourceStatus: est.sourceStatus,
-        });
-      }
-      curLoc = node.loc;
-
-      if (node.opp) {
-        const o = node.opp;
-        const isPerson = o.category === "people";
-        // Une étape **garantie** (forced) ou une personne-ancre est placée
-        // quoi qu'il arrive ; les opportunités optionnelles cèdent si la
-        // journée déborde.
-        if (isPerson || o.forced || clock + o.durationMin <= DAY_END_MIN) {
-          stops.push({
-            opportunityId: o.id, title: o.title, kind: "visit",
-            start: isoDateTime(date, clock), end: isoDateTime(date, clock + o.durationMin),
-            location: o.location, source: o.source, sourceStatus: o.sourceStatus,
-            note: heat && o.indoor === false ? "Extérieur — prudence chaleur" : undefined,
-          });
-          clock += o.durationMin;
-          includedOpportunityIds.push(o.id);
-        }
+    if (parkDaysLeft > 0) {
+      // Étape garantie en cours : le foyer reste sur place cette nuit.
+      parkDaysLeft -= 1;
+    } else {
+      // Progression continue vers la prochaine étape, puis vers la destination
+      // de la phase (ancre à l'aller, point de départ au retour), sous le
+      // plafond du jour. driveTowardWithin **découpe** un long trajet : s'il
+      // n'arrive pas, la nuit se fera en chemin (vraie ville d'étape).
+      const waypoints = phase === "out" ? out : back;
+      const phaseTarget = phase === "out" ? anchorLoc : win.origin;
+      let guard = 0;
+      while (cur.dayDrive < dayCap && guard++ < 64) {
+        const idx = phase === "out" ? wpOut : wpBack;
+        const wp = idx < waypoints.length ? waypoints[idx] : null;
+        const res = await driveTowardWithin(
+          cur, wp ? wp.location : phaseTarget, wp ? wp.title : (phase === "out" ? anchor.title : "le point de départ"),
+          date, dayCap, heat, c, adapters, p.pool,
+        );
+        stops.push(...res.stops);
+        if (!res.arrived) break;          // plafond du jour atteint → nuit-étape en chemin
+        if (!wp) break;                   // arrivé à la destination de la phase (ancre/maison)
+        const visitStops = visitReached(wp, date, heat);
+        if (visitStops.length === 0) break; // optionnelle qui ne tient pas dans la journée → nuit sur place, visitée demain matin (jamais sautée par manque d'heure)
+        stops.push(...visitStops);
+        if (phase === "out") wpOut += 1; else wpBack += 1;
+        if ((wp.stayNights ?? 0) > 0) { parkDaysLeft = (wp.stayNights ?? 0) - 1; break; }
       }
     }
 
-    // ── Retour à la maison : le DERNIER jour, on rentre au point de départ.
-    // Sans ça, le voyage se terminerait à l'ancre (le foyer ne rentrerait
-    // jamais) — c'était une dette du solveur durci (le V1 finissait sa
-    // séquence par l'origine).
-    const isLastDay = date === endDate;
-    const atOrigin =
-      Math.abs(curLoc.lat - win.origin.lat) < 1e-6 &&
-      Math.abs(curLoc.lng - win.origin.lng) < 1e-6;
-    let returnedHome = false;
-    if (isLastDay && !atOrigin) {
-      const est = await adapters.travel.estimate(curLoc, win.origin, isoDateTime(date, clock));
-      let remaining = est.minutes;
-      while (driveSinceBreak + remaining > c.babyPauseEveryMin) {
-        const before = c.babyPauseEveryMin - driveSinceBreak;
-        clock += before; dayDrive += before; remaining -= before;
-        stops.push({
-          title: "Pause bébé", kind: "baby-pause",
-          start: isoDateTime(date, clock), end: isoDateTime(date, clock + c.babyPauseDurationMin),
-          location: curLoc, curated: curatedFor("baby-pause", curLoc, p.pool),
-        });
-        clock += c.babyPauseDurationMin; driveSinceBreak = 0;
-      }
-      if (est.minutes > 0) {
-        const driveStart = clock;
-        clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
-        stops.push({
-          title: "Retour au point de départ", kind: "drive",
-          start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
-          location: win.origin,
-          note: est.chargeStops > 0 ? `${est.chargeStops} arrêt(s) Superchargeur inclus` : undefined,
-          sourceStatus: est.sourceStatus,
-        });
-      }
-      curLoc = win.origin;
-      returnedHome = true;
-    }
+    const returnedHome = isLastDay && sameLoc(cur.curLoc, win.origin);
 
-    // Journée de route trop longue avec un bébé : on le **signale** (jamais
-    // masqué) plutôt que de l'imposer en silence.
-    if (dayDrive > Math.round(c.maxDrivePerDayMin * 1.4)) {
+    // Journée de route au-delà du plafond confort : signalée (jamais masquée).
+    // Avec la découpe, cela ne survient qu'en fenêtre trop serrée pour découper.
+    if (cur.dayDrive > cap) {
       conflicts.push(
-        `Journée du ${date} : ${Math.round(dayDrive / 60)} h de route — envisage une étape intermédiaire pour le bébé.`,
+        `Journée du ${date} : ${Math.round(cur.dayDrive / 60)} h de route — fenêtre trop serrée pour découper davantage.`,
       );
     }
 
-    // Pas de "nuit" le dernier jour si on est rentré à la maison (le voyage
-    // se termine). Sinon, nuit normale au lieu courant.
-    if (!(isLastDay && returnedHome)) {
+    if (returnedHome) {
+      stops.push({
+        title: "Retour à la maison", kind: "night",
+        start: isoDateTime(date, Math.max(cur.clock, DAY_END_MIN)),
+        end: isoDateTime(addDays(date, 1), DAY_START_MIN),
+        location: win.origin,
+      });
+    } else {
       const nextDayWork = c.workDays.includes(weekday(addDays(date, 1)));
       stops.push({
         title: (isWorkday || nextDayWork) ? "Nuit (hébergement workation-ready)" : "Nuit (matelas ferme + clim)",
         kind: "night",
-        start: isoDateTime(date, Math.max(clock, DAY_END_MIN)),
+        start: isoDateTime(date, Math.max(cur.clock, DAY_END_MIN)),
         end: isoDateTime(addDays(date, 1), DAY_START_MIN),
-        location: curLoc,
-      });
-    } else {
-      stops.push({
-        title: "Retour à la maison", kind: "night",
-        start: isoDateTime(date, Math.max(clock, DAY_END_MIN)),
-        end: isoDateTime(addDays(date, 1), DAY_START_MIN),
-        location: win.origin,
+        location: cur.curLoc,
       });
     }
 
-    days.push({ date, isWorkday, stops, driveMinutes: dayDrive });
+    days.push({ date, isWorkday, stops, driveMinutes: cur.dayDrive });
   }
 
   if (!anchorPlaced) conflicts.push("L'ancre n'a pas pu être posée à sa date — élargis la fenêtre.");
-  if (unplacedBack.length > 0) conflicts.push("Fenêtre trop courte pour le retour : étapes du retour non placées.");
+  if (!sameLoc(cur.curLoc, win.origin)) {
+    conflicts.push("Fenêtre trop courte pour boucler le retour au point de départ — élargis les dates.");
+  }
 
   // Anti-pattern : jamais d'abandon silencieux d'une étape garantie. Si une
   // étape forced saisie n'a pas pu être posée, on le dit explicitement.

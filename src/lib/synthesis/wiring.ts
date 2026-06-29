@@ -1,7 +1,8 @@
-import type { SynthesisAdapters, TravelTimeProvider, CaniculeProvider } from "./adapters";
+import type { SynthesisAdapters, TravelTimeProvider, CaniculeProvider, GeoProvider } from "./adapters";
 import type { LatLng } from "./types";
 import { haversineKm } from "./solver";
 import { getEventsProvider } from "@/lib/providers/events";
+import { FRENCH_CITIES } from "@/data/cities";
 
 // === INTÉGRATION — relie aux modules livrés en R1–R6 ===
 //  • durées réalistes : src/lib/routing/realistic-time.ts (estimateRealisticLeg :
@@ -59,6 +60,19 @@ const canicule: CaniculeProvider = {
   },
 };
 
+// Géocodage inverse depuis la table seed des villes françaises. Sert à nommer
+// les étapes intermédiaires d'un long trajet découpé (nuit dans une vraie ville).
+const geo: GeoProvider = {
+  nearestCity(loc: LatLng) {
+    let best: { name: string; location: LatLng; d2: number } | null = null;
+    for (const c of FRENCH_CITIES) {
+      const d2 = (c.lat - loc.lat) ** 2 + (c.lng - loc.lng) ** 2;
+      if (!best || d2 < best.d2) best = { name: c.name, location: { lat: c.lat, lng: c.lng }, d2 };
+    }
+    return best ? { name: best.name, location: best.location } : null;
+  },
+};
+
 export function createSynthesisAdapters(): SynthesisAdapters {
-  return { travel, canicule, events: getEventsProvider() };
+  return { travel, canicule, events: getEventsProvider(), geo };
 }
