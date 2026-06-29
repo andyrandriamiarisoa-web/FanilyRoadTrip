@@ -42,6 +42,7 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | V4 | **Étapes garanties + corrections carnet** (étape saisie = `forced` jamais arbitrée par le knapsack, nuits sur place honorées, conflit explicite si infaisable ; noms de villes réels dans le carnet ; journal fidèle à la requête effective ; flag conduite > seuil ; **retour au point de départ** en fin de fenêtre ; Tesla : réveil explicite au lieu d'un faux 0 %) | ✅ |
 | V4.1 | **Découpe des longs trajets** (le solveur n'écrase plus un trajet sur une journée : plafond de conduite/jour **dérivé du Profil Foyer**, longs trajets répartis avec **nuits intermédiaires dans de vraies villes**, **arrivée à l'ancre avant son heure de début**, nuits d'étape honorées exactement — fini les jours « reposants » de 7 h de route) | ✅ |
 | V4.2 | **« Au plus rapide » faisable + plafond reposant + jours d'aller réservés** (l'intention « au plus rapide » réserve d'office ancre + nuits d'étapes garanties + trajet A/R minimal au lieu d'une fenêtre infaisable ; plafond conduite/jour borné à 5 h ; l'aller réserve les nuits de séjour garanties pour arriver à l'ancre à l'heure ; nuits d'étape écourtées explicitement signalées) | ✅ |
+| V4.3 | **Positionnement conscient des jours travaillés** (le solveur part **plus tôt pour capter les week-ends** : aller/retour dimensionnés par la **capacité de conduite réelle** des jours — libre = plafond, travaillé = court saut du soir — au lieu d'une fraction fixe du budget ; la **faisabilité prime** sur le budget de nuits ; estimation de nuits « au plus rapide » pondérée par le rythme télétravail → fenêtre cohérente avec le carnet) | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :
@@ -377,6 +378,26 @@ temps de trajet → le foyer arrive à l'ancre **à l'heure**. (4) **Nuits d'ét
 désormais **signalées explicitement** (contrat V4 : honoré ou conflit, jamais
 silencieux). Tests : `request-builders.test.ts` (fastest faisable, plafond borné)
 + `optimizer-leg-splitting.test.ts` (nuits écourtées signalées).
+
+**Positionnement conscient des jours travaillés (V4.3)** : journal de debug réel
+où le solveur refusait de « partir plus tôt » — il plaçait le départ un mardi
+(`anchor − 40 %·budget`), tombant sur 3 jours de télétravail (conduite plafonnée
+à ~90 min le soir), si bien que le foyer n'avançait pas et entassait 5 h de route
+le **jour de l'anniversaire** (arrivée en retard). Cause : l'allocation aller/
+retour était une **fraction fixe du budget de nuits**, aveugle au fait qu'un jour
+travaillé conduit à peine. Correctif dans `layoutAligned` : aller et retour sont
+désormais dimensionnés par un **remplissage conscient de la capacité réelle des
+jours** (`fillDays` : jour libre = plafond, jour travaillé = `eveningCap`), en
+**remontant depuis la veille de l'ancre** pour **capter les week-ends** et
+**arriver à l'heure**. La **faisabilité prime** sur le budget : on ne descend
+jamais sous le minimum faisable (sinon arrivée tardive) ; la marge de
+« maximiser » est répartie ~40/60 au-delà. Côté `request-builders`, l'estimation
+de nuits « au plus rapide » (`travelNights`) est **pondérée par le rythme de
+télétravail** (capacité quotidienne moyenne = jours travaillés × saut du soir +
+jours libres × plafond) → la fenêtre affichée (ex. ~11 nuits) **coïncide avec le
+carnet généré** au lieu d'un « 8 nuits » trompeur. Résultat sur le cas réel :
+départ avancé au week-end, Dijon honorée, **arrivée à Marseille avant l'heure de
+l'anniversaire, zéro conflit**.
 
 ## Commandes essentielles
 
