@@ -431,6 +431,43 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
       }
     }
 
+    // ── Retour à la maison : le DERNIER jour, on rentre au point de départ.
+    // Sans ça, le voyage se terminerait à l'ancre (le foyer ne rentrerait
+    // jamais) — c'était une dette du solveur durci (le V1 finissait sa
+    // séquence par l'origine).
+    const isLastDay = date === endDate;
+    const atOrigin =
+      Math.abs(curLoc.lat - win.origin.lat) < 1e-6 &&
+      Math.abs(curLoc.lng - win.origin.lng) < 1e-6;
+    let returnedHome = false;
+    if (isLastDay && !atOrigin) {
+      const est = await adapters.travel.estimate(curLoc, win.origin, isoDateTime(date, clock));
+      let remaining = est.minutes;
+      while (driveSinceBreak + remaining > c.babyPauseEveryMin) {
+        const before = c.babyPauseEveryMin - driveSinceBreak;
+        clock += before; dayDrive += before; remaining -= before;
+        stops.push({
+          title: "Pause bébé", kind: "baby-pause",
+          start: isoDateTime(date, clock), end: isoDateTime(date, clock + c.babyPauseDurationMin),
+          location: curLoc, curated: curatedFor("baby-pause", curLoc, p.pool),
+        });
+        clock += c.babyPauseDurationMin; driveSinceBreak = 0;
+      }
+      if (est.minutes > 0) {
+        const driveStart = clock;
+        clock += remaining; dayDrive += remaining; driveSinceBreak += remaining;
+        stops.push({
+          title: "Retour au point de départ", kind: "drive",
+          start: isoDateTime(date, driveStart), end: isoDateTime(date, clock),
+          location: win.origin,
+          note: est.chargeStops > 0 ? `${est.chargeStops} arrêt(s) Superchargeur inclus` : undefined,
+          sourceStatus: est.sourceStatus,
+        });
+      }
+      curLoc = win.origin;
+      returnedHome = true;
+    }
+
     // Journée de route trop longue avec un bébé : on le **signale** (jamais
     // masqué) plutôt que de l'imposer en silence.
     if (dayDrive > Math.round(c.maxDrivePerDayMin * 1.4)) {
@@ -439,14 +476,25 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
       );
     }
 
-    const nextDayWork = c.workDays.includes(weekday(addDays(date, 1)));
-    stops.push({
-      title: (isWorkday || nextDayWork) ? "Nuit (hébergement workation-ready)" : "Nuit (matelas ferme + clim)",
-      kind: "night",
-      start: isoDateTime(date, Math.max(clock, DAY_END_MIN)),
-      end: isoDateTime(addDays(date, 1), DAY_START_MIN),
-      location: curLoc,
-    });
+    // Pas de "nuit" le dernier jour si on est rentré à la maison (le voyage
+    // se termine). Sinon, nuit normale au lieu courant.
+    if (!(isLastDay && returnedHome)) {
+      const nextDayWork = c.workDays.includes(weekday(addDays(date, 1)));
+      stops.push({
+        title: (isWorkday || nextDayWork) ? "Nuit (hébergement workation-ready)" : "Nuit (matelas ferme + clim)",
+        kind: "night",
+        start: isoDateTime(date, Math.max(clock, DAY_END_MIN)),
+        end: isoDateTime(addDays(date, 1), DAY_START_MIN),
+        location: curLoc,
+      });
+    } else {
+      stops.push({
+        title: "Retour à la maison", kind: "night",
+        start: isoDateTime(date, Math.max(clock, DAY_END_MIN)),
+        end: isoDateTime(addDays(date, 1), DAY_START_MIN),
+        location: win.origin,
+      });
+    }
 
     days.push({ date, isWorkday, stops, driveMinutes: dayDrive });
   }
