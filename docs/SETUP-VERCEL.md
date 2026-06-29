@@ -29,6 +29,17 @@ Dans **GitHub → Settings → General → Pull Requests** :
 - [ ] **Allow auto-merge** (permet la fusion automatique sur CI verte).
 - [ ] **Automatically delete head branches** (nettoie les branches fusionnées).
 
+Dans **GitHub → Settings → Secrets and variables → Actions** *(optionnel)* :
+
+- [ ] `ANTHROPIC_API_KEY` — active la **revue agent** sur chaque PR
+      (`.github/workflows/agent-review.yml`) : un agent Claude valide le diff
+      face aux specs (`CLAUDE.md`/`AGENTS.md`/`DECISIONS.md`) et signale les
+      cas de test (validation + échec) manquants, en **commentaire**
+      (consultatif, ne bloque pas). **Sans ce secret, l'étape se met en skip
+      honnête** — la CI reste verte. La **porte bloquante** est la couverture
+      (seuils planchers dans `vitest.config.ts`, vérifiés par `npm run
+      test:coverage`).
+
 Dans **Vercel → Project → Settings → Git** :
 
 - [ ] Brancher le dépôt `andyrandriamiarisoa-web/FanilyRoadTrip`, branche de prod `main`.
