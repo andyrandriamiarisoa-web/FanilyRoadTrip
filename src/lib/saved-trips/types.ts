@@ -101,6 +101,10 @@ export function nightsFromIntent(form: {
   anchorEndDate: string;
   minNights: number;
   maxNights: number;
+  /** Somme des nuits des étapes garanties (forced) — engagement obligatoire. */
+  forcedStayNights?: number;
+  /** Nuits de trajet minimales estimées (aller-retour) — engagement obligatoire. */
+  travelNights?: number;
 }): { minNights: number; maxNights: number } {
   if (form.intent === "custom") {
     const min = Math.max(1, form.minNights);
@@ -112,9 +116,14 @@ export function nightsFromIntent(form: {
   // Bloc d'ancre (jours consécutifs).
   const anchorNights = Math.max(0, inclusiveDays(form.anchorStartDate, form.anchorEndDate) - 1);
   if (form.intent === "fastest") {
-    // Au plus rapide : juste l'ancre + 1 nuit aller-retour.
-    const fast = Math.max(1, anchorNights + 1);
-    return { minNights: fast, maxNights: Math.min(windowNights, fast + 1) };
+    // Au plus rapide = le plus court **faisable**. On ne descend jamais sous les
+    // engagements obligatoires : durée de l'ancre + nuits des étapes garanties +
+    // trajet aller-retour minimal. (Avant, c'était `anchorNights + 1`, ce qui
+    // ignorait une étape « Dijon · 2 nuits » et produisait une fenêtre infaisable.)
+    const stays = Math.max(0, form.forcedStayNights ?? 0);
+    const travel = Math.max(1, form.travelNights ?? 1);
+    const fast = Math.max(1, anchorNights + stays + travel);
+    return { minNights: Math.min(windowNights, fast), maxNights: Math.min(windowNights, fast + 1) };
   }
   // maximize : prend toute la fenêtre disponible.
   return {

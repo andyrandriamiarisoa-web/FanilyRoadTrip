@@ -12,6 +12,7 @@
  */
 
 import { geocodeCity } from "@/lib/routing/geocode";
+import { haversineKm } from "@/lib/synthesis/geo-time";
 import { summarizeProfile } from "@/lib/profile/profile";
 import type { FamilyProfile } from "@/types";
 import type {
@@ -59,8 +60,12 @@ export function constraintsFromProfile(p: FamilyProfile): HouseholdConstraints {
     // Plafond de conduite **par jour**, dérivé du Profil Foyer (au lieu d'un 300
     // codé en dur). Au plus ~deux segments de conduite confortables (le segment
     // max du profil) dans une journée — un trajet plus long est découpé par le
-    // solveur avec une nuit intermédiaire. Plancher de sécurité à 180 min.
-    maxDrivePerDayMin: Math.max(180, Math.round(p.driving.maxSegmentMinutes * 2)),
+    // solveur avec une nuit intermédiaire. Borné dans [180, 300] : plancher de
+    // sécurité 180 min, et plafond « reposant » à 5 h pour un foyer bébé +
+    // contrainte médicale (un `maxSegmentMinutes` élevé ne doit pas produire de
+    // journées de 6–7 h de route). Pour des journées encore plus douces, baisser
+    // `maxSegmentMinutes` dans le Profil Foyer.
+    maxDrivePerDayMin: Math.min(300, Math.max(180, Math.round(p.driving.maxSegmentMinutes * 2))),
     workDays: p.work.workDays
       .map((d) => WEEKDAY_TO_NUM[d])
       .filter((n): n is number => typeof n === "number"),
@@ -126,6 +131,26 @@ export function buildSynthesisRequest(
       ? form.anchorEndDate
       : form.anchorStartDate;
 
+  const anchorGeo = geocodeCity(form.anchorCity);
+  const originGeo = geocodeCity(form.originCity);
+
+  // Engagements obligatoires servant à dimensionner « Au plus rapide » : le mode
+  // ne peut pas descendre sous l'ancre + les nuits des étapes garanties + le
+  // trajet aller-retour minimal (sinon il produit une fenêtre infaisable, comme
+  // un 2–3 nuits qui ignore une étape « Dijon · 2 nuits »).
+  const constraints = constraintsFromProfile(profile);
+  const forcedStayNights = form.stops.reduce((sum, s) => sum + Math.max(0, s.nights), 0);
+  // Estimation **conservatrice** des nuits de trajet (vol d'oiseau ×1,3, ~90 km/h,
+  // sous le plafond conduite/jour) : un plancher faisable, pas une valeur exacte
+  // — le solveur affine et signale toute infaisabilité résiduelle.
+  let travelNights = 1;
+  if (anchorGeo && originGeo) {
+    const oneWayKm =
+      haversineKm({ lat: originGeo.lat, lng: originGeo.lng }, { lat: anchorGeo.lat, lng: anchorGeo.lng }) * 1.3;
+    const oneWayMin = (oneWayKm / 90) * 60;
+    travelNights = Math.max(1, Math.ceil((2 * oneWayMin) / constraints.maxDrivePerDayMin));
+  }
+
   const derivedNights = nightsFromIntent({
     intent: form.intent,
     earliestStart: form.earliestStart,
@@ -134,9 +159,10 @@ export function buildSynthesisRequest(
     anchorEndDate: effectiveAnchorEnd,
     minNights: form.minNights,
     maxNights: form.maxNights,
+    forcedStayNights,
+    travelNights,
   });
 
-  const anchorGeo = geocodeCity(form.anchorCity);
   if (!anchorGeo) {
     return {
       request: null,
@@ -146,7 +172,6 @@ export function buildSynthesisRequest(
       error: `Ville inconnue pour l'ancre : ${form.anchorCity}`,
     };
   }
-  const originGeo = geocodeCity(form.originCity);
   if (!originGeo) {
     return {
       request: null,
@@ -187,7 +212,7 @@ export function buildSynthesisRequest(
       minNights: derivedNights.minNights,
       maxNights: derivedNights.maxNights,
     },
-    constraints: constraintsFromProfile(profile),
+    constraints,
   };
 
   return { request, derivedNights, effectiveAnchorEnd, unknownStops, error: null };

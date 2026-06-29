@@ -37,12 +37,14 @@ describe("constraintsFromProfile", () => {
     expect(constraintsFromProfile(prudent).maxDrivePerDayMin).toBe(180);
   });
 
-  it("augmente le plafond pour un conducteur endurant", () => {
+  it("plafonne à 5 h/jour même pour un profil endurant (reposant bébé + médical)", () => {
     const endurant: FamilyProfile = {
       ...DEFAULT_FAMILY_PROFILE,
       driving: { ...DEFAULT_FAMILY_PROFILE.driving, maxSegmentMinutes: 200 },
     };
-    expect(constraintsFromProfile(endurant).maxDrivePerDayMin).toBe(400);
+    // 200 * 2 = 400, borné à 300 (5 h) — un long segment ne doit pas produire
+    // des journées de 6–7 h de route pour ce foyer.
+    expect(constraintsFromProfile(endurant).maxDrivePerDayMin).toBe(300);
   });
 });
 
@@ -94,6 +96,15 @@ describe("buildSynthesisRequest", () => {
     expect(res.request!.opportunities).toHaveLength(1);
     expect(res.request!.opportunities[0].forced).toBe(true);
     expect(res.unknownStops).toEqual([]);
+  });
+
+  it("« Au plus rapide » réserve l'ancre + les nuits d'étape + le trajet (faisable)", () => {
+    const res = buildSynthesisRequest({ ...baseForm, intent: "fastest" }, DEFAULT_FAMILY_PROFILE);
+    expect(res.request).not.toBeNull();
+    // Ancre (1 nuit) + Dijon (2 nuits) + trajet A/R Fresnes↔Marseille (plusieurs
+    // nuits) → bien au-delà de l'ancienne dérivation buguée `anchorNights + 1 = 2`.
+    expect(res.derivedNights!.minNights).toBeGreaterThanOrEqual(5);
+    expect(res.request!.window.minNights).toBe(res.derivedNights!.minNights);
   });
 
   it("bloque honnêtement sur une ville d'ancre inconnue", () => {
