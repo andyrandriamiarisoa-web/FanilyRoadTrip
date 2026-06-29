@@ -156,11 +156,16 @@ export function PlanWizard() {
     }));
   }
 
-  function setCandidates(candidates: TripCandidate[], dateOptions: DateOption[]) {
+  function setCandidates(
+    candidates: TripCandidate[],
+    dateOptions: DateOption[],
+    effectiveRequest?: unknown,
+  ) {
     setTrip((t) => ({
       ...t,
       candidates: candidates as unknown[],
       dateOptions: dateOptions as unknown[],
+      effectiveSynthesisRequest: effectiveRequest,
       selectedCandidateIdx: 0,
       draft: undefined,
       draftSource: undefined,
@@ -265,8 +270,8 @@ export function PlanWizard() {
         <AnchoredTripForm
           value={trip.formState as AnchoredFormState}
           onChange={setFormAnchored}
-          onResult={({ candidates, dateOptions }) =>
-            setCandidates(candidates, dateOptions)
+          onResult={({ candidates, dateOptions, effectiveRequest }) =>
+            setCandidates(candidates, dateOptions, effectiveRequest)
           }
           hasExisting={!!trip.candidates && trip.candidates.length > 0}
         />

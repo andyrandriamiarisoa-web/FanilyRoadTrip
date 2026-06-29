@@ -96,6 +96,8 @@ function savedTrip(over: Partial<SavedTrip> = {}): SavedTrip {
     candidates: [{ label: "Le Découvreur", startDate: "2026-08-05" }, { label: "Le Reposant" }],
     selectedCandidateIdx: 0,
     dateOptions: [],
+    // Requête effective persistée (sinon un avertissement « non persistée » est émis).
+    effectiveSynthesisRequest: { anchors: [], opportunities: [], window: {} },
     promotedTripPlanId: "composed-x",
     promotedAt: "2026-06-25T09:00:00.000Z",
     createdAt: "2026-06-24T09:00:00.000Z",

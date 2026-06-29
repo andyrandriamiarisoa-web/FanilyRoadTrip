@@ -157,6 +157,8 @@ export const SavedTripSchema = z.object({
   candidates: z.array(TripCandidateLooseSchema).optional(),
   selectedCandidateIdx: z.number().int().min(0).optional(),
   dateOptions: z.array(DateOptionLooseSchema).optional(),
+  /** Requête de synthèse RÉELLEMENT consommée (enrichie serveur) — pour le journal de debug. */
+  effectiveSynthesisRequest: z.unknown().optional(),
   // Promotion vers le carnet
   promotedTripPlanId: z.string().optional(),
   promotedAt: z.string().optional(),

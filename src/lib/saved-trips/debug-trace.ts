@@ -100,12 +100,22 @@ export function buildDebugTrace(input: BuildDebugTraceInput): DebugTrace {
     reconstructedRequest = {
       kind: "synthesis",
       endpoint: "/api/synthesis",
+      // Requête reconstruite depuis le formState (audit de la saisie)…
       request: built.request,
+      // …et requête RÉELLEMENT consommée par le solveur (enrichie serveur avec
+      // les événements datés injectés) si elle a été persistée. C'est elle qui
+      // explique des opportunités absentes de la saisie (ex. « Spectacle X »).
+      effectiveRequest: savedTrip.effectiveSynthesisRequest ?? null,
       derivedNights: built.derivedNights,
       effectiveAnchorEnd: built.effectiveAnchorEnd,
       unknownStops: built.unknownStops,
       buildError: built.error,
     };
+    if (!savedTrip.effectiveSynthesisRequest) {
+      warnings.push(
+        "Requête effective (enrichie serveur) non persistée pour ce voyage (composé avant cette version) — seules les opportunités saisies figurent dans `reconstructedRequest.request`. Recompose pour capturer les événements injectés.",
+      );
+    }
     if (built.error) warnings.push(`Reconstruction requête synthèse : ${built.error}`);
     if (built.unknownStops.length > 0) {
       warnings.push(

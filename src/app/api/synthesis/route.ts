@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
   try {
     const candidates = await generateCandidates(enriched, adapters);
     const dateOptions = await exploreDateFlex(enriched, adapters, { maxOptions: 7 });
-    return NextResponse.json({ candidates, dateOptions });
+    // `effectiveRequest` = la requête RÉELLEMENT consommée par le solveur, après
+    // enrichissement serveur (événements datés injectés). Rend le journal de
+    // debug fidèle (sinon il manquerait les opportunités ajoutées ici).
+    return NextResponse.json({ candidates, dateOptions, effectiveRequest: enriched });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erreur de synthèse" }, { status: 500 });
   }

@@ -10,6 +10,8 @@ const Opportunity = z.object({
   timeWindow: z.object({ start: z.string(), end: z.string() }).optional(),
   indoor: z.boolean().optional(), babyFriendly: z.boolean().optional(),
   source: z.string(), sourceStatus: SourceStatus,
+  forced: z.boolean().optional(),
+  stayNights: z.number().int().min(0).optional(),
 });
 const Person = Opportunity.extend({
   category: z.literal("people"),

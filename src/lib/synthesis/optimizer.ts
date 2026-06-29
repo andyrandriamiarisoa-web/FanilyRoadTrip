@@ -213,13 +213,43 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   const outDays = drivingOut.length > 0 ? drivingOut : outboundDates;
   const returnDriveDays = drivingReturn.length > 0 ? drivingReturn : returnDates;
 
+  // Allocation **étapes-garanties-aware** : une étape forced occupe son jour
+  // de visite + (stayNights-1) jours suivants (le foyer reste sur place → les
+  // nuits s'accumulent à cette localisation). Les opportunités optionnelles se
+  // répartissent sur les jours restants.
   const assign = new Map<string, Opportunity[]>();
-  if (outDays.length > 0) {
-    splitContiguous(out, outDays.length).forEach((grp, i) => assign.set(outDays[i], grp));
+  function allocate(stops: Opportunity[], dayList: string[]): Opportunity[] {
+    const forcedStops = stops.filter((s) => s.forced);
+    const optionalStops = stops.filter((s) => !s.forced);
+    const reserved = new Set<number>();
+    const leftover: Opportunity[] = [];
+    let cursor = 0;
+    for (const f of forcedStops) {
+      if (cursor >= dayList.length) { leftover.push(f); continue; }
+      const dayIdx = cursor;
+      assign.set(dayList[dayIdx], [...(assign.get(dayList[dayIdx]) ?? []), f]);
+      reserved.add(dayIdx);
+      const extra = Math.max(0, (f.stayNights ?? 0) - 1);
+      for (let k = 1; k <= extra && dayIdx + k < dayList.length; k++) reserved.add(dayIdx + k);
+      cursor = dayIdx + 1 + extra;
+    }
+    const freeDays = dayList.filter((_, i) => !reserved.has(i));
+    if (freeDays.length > 0 && optionalStops.length > 0) {
+      splitContiguous(optionalStops, freeDays.length).forEach((grp, i) => {
+        if (grp.length) assign.set(freeDays[i], [...(assign.get(freeDays[i]) ?? []), ...grp]);
+      });
+    } else {
+      leftover.push(...optionalStops);
+    }
+    return leftover;
   }
+
   const unplacedBack: Opportunity[] = [];
+  if (outDays.length > 0) {
+    allocate(out, outDays);
+  }
   if (returnDriveDays.length > 0) {
-    splitContiguous(back, returnDriveDays.length).forEach((grp, i) => assign.set(returnDriveDays[i], grp));
+    unplacedBack.push(...allocate(back, returnDriveDays));
   } else {
     unplacedBack.push(...back);
   }
@@ -385,7 +415,10 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
       if (node.opp) {
         const o = node.opp;
         const isPerson = o.category === "people";
-        if (isPerson || clock + o.durationMin <= DAY_END_MIN) {
+        // Une étape **garantie** (forced) ou une personne-ancre est placée
+        // quoi qu'il arrive ; les opportunités optionnelles cèdent si la
+        // journée déborde.
+        if (isPerson || o.forced || clock + o.durationMin <= DAY_END_MIN) {
           stops.push({
             opportunityId: o.id, title: o.title, kind: "visit",
             start: isoDateTime(date, clock), end: isoDateTime(date, clock + o.durationMin),
@@ -396,6 +429,14 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
           includedOpportunityIds.push(o.id);
         }
       }
+    }
+
+    // Journée de route trop longue avec un bébé : on le **signale** (jamais
+    // masqué) plutôt que de l'imposer en silence.
+    if (dayDrive > Math.round(c.maxDrivePerDayMin * 1.4)) {
+      conflicts.push(
+        `Journée du ${date} : ${Math.round(dayDrive / 60)} h de route — envisage une étape intermédiaire pour le bébé.`,
+      );
     }
 
     const nextDayWork = c.workDays.includes(weekday(addDays(date, 1)));
@@ -412,6 +453,16 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
 
   if (!anchorPlaced) conflicts.push("L'ancre n'a pas pu être posée à sa date — élargis la fenêtre.");
   if (unplacedBack.length > 0) conflicts.push("Fenêtre trop courte pour le retour : étapes du retour non placées.");
+
+  // Anti-pattern : jamais d'abandon silencieux d'une étape garantie. Si une
+  // étape forced saisie n'a pas pu être posée, on le dit explicitement.
+  for (const o of selected) {
+    if (o.forced && !includedOpportunityIds.includes(o.id)) {
+      conflicts.push(
+        `Étape « ${o.title} » non placée dans la fenêtre — élargis les dates ou réduis les autres étapes.`,
+      );
+    }
+  }
 
   return {
     ambiance: p.ambiance, label: p.label, startDate, endDate, days,

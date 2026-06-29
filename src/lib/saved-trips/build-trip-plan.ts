@@ -76,10 +76,22 @@ function slugify(s: string): string {
 
 // ── Mode B : TripCandidate → TripPlan ───────────────────────────────────────
 
+/** Ville connue la plus proche de coordonnées (sinon null). */
+function nearestCityName(lat: number, lng: number): string | null {
+  let best: { name: string; d2: number } | null = null;
+  for (const c of FRENCH_CITIES) {
+    const d2 = (c.lat - lat) ** 2 + (c.lng - lng) ** 2;
+    if (!best || d2 < best.d2) best = { name: c.name, d2 };
+  }
+  return best?.name ?? null;
+}
+
 /**
  * Détermine la ville et les coordonnées d'un jour planifié à partir de ses
  * stops. On prend le dernier stop avec une location (en général la `night`
- * ou le dernier `drive`/`anchor`) — c'est l'endroit où le foyer dort.
+ * ou le dernier `drive`/`anchor`) — c'est l'endroit où le foyer dort — puis on
+ * en déduit le **nom de ville réel** par proximité (les titres de stops comme
+ * « Nuit (…) » ou « Séminaire » ne sont pas des villes).
  */
 function dayLocation(day: PlannedDay): { city: string; lat?: number; lng?: number } {
   // Priorité : night > anchor > visit > drive (du plus stable au plus volatil).
@@ -87,11 +99,18 @@ function dayLocation(day: PlannedDay): { city: string; lat?: number; lng?: numbe
   for (const kind of priorities) {
     const stop = [...day.stops].reverse().find((s) => s.kind === kind && s.location);
     if (stop && stop.location) {
-      return {
-        city: stop.title.replace(/^Trajet vers /, ""),
-        lat: stop.location.lat,
-        lng: stop.location.lng,
-      };
+      const { lat, lng } = stop.location;
+      // Une visite/ancre porte souvent un titre de lieu exploitable ; sinon on
+      // géocode-inverse vers la ville connue la plus proche.
+      const fromTitle =
+        kind === "visit" || kind === "drive"
+          ? stop.title.replace(/^Trajet vers /, "").replace(/\s*\(.*\)\s*$/, "").trim()
+          : "";
+      const city =
+        fromTitle && geocodeCity(fromTitle)
+          ? fromTitle
+          : (nearestCityName(lat, lng) ?? (fromTitle || "Étape"));
+      return { city, lat, lng };
     }
   }
   return { city: "Étape" };
