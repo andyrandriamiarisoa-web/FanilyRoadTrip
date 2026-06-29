@@ -84,8 +84,26 @@ curl https://fleet-api.prd.eu.vn.cloud.tesla.com/api/1/users/region \
 - Si un véhicule exige des commandes signées, l'app l'**affiche honnêtement**
   plutôt que de simuler un succès.
 
+## Véhicule « en veille » — pourquoi le SoC n'apparaît pas tout de suite
+
+La Fleet API renvoie souvent `state: "asleep"` **même quand la voiture
+s'affiche dans l'app Tesla** : Tesla laisse le véhicule dormir pour préserver
+la batterie (l'app maintient, elle, une connexion live qui le réveille). Tant
+que le véhicule est endormi, `vehicle_data` (donc le SoC réel) n'est pas
+lisible.
+
+L'app **ne fabrique pas** un faux 0 % dans ce cas (anti-pattern #3) : elle
+affiche honnêtement « Véhicule en veille » et propose **« Réveiller et lire
+l'état »**. Ce bouton envoie `wake_up` (commande legacy, compatible Raven)
+puis **sonde l'état quelques fois** (~3 s × 7) jusqu'à ce que la Fleet API
+repasse `online`, et affiche alors les vraies valeurs. L'état non-`online`
+n'est **jamais mis en cache** (sinon le sondage post-réveil resterait bloqué
+sur la valeur endormie pendant tout le TTL).
+
 ## Coût Fleet API
 
-Chaque lecture `vehicle_data` est facturée. L'app met l'état en cache
-(`TESLA_STATE_CACHE_TTL_SECONDS`, défaut 5 min) : au plus **une lecture
-facturable par véhicule et par fenêtre**, sans réveil ni polling.
+Chaque lecture `vehicle_data` est facturée. L'app met l'état **en ligne** en
+cache (`TESLA_STATE_CACHE_TTL_SECONDS`, défaut 5 min) : au plus **une lecture
+facturable par véhicule et par fenêtre**, sans réveil automatique ni polling
+de fond. Seul un **réveil explicite** demandé par l'utilisateur déclenche un
+court sondage borné.

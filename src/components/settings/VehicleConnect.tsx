@@ -43,6 +43,8 @@ export function VehicleConnect() {
   const [commandResult, setCommandResult] = useState<CommandResult | null>(null);
   const [busyCommand, setBusyCommand] = useState<string | null>(null);
   const [chargeLimit, setChargeLimit] = useState(80);
+  const [waking, setWaking] = useState(false);
+  const [wakeNote, setWakeNote] = useState<string | null>(null);
 
   const readState = useCallback(async (vehicleId: string) => {
     setPhase("reading");
@@ -126,6 +128,66 @@ export function VehicleConnect() {
     setSelectedId(v.id);
     await saveSelectedVehicle(v.id, v.displayName);
     await readState(v.id);
+  }
+
+  /**
+   * Réveille le véhicule puis sonde l'état jusqu'à ce que la Fleet API le voie
+   * « en ligne » (la voiture peut être affichée dans l'app Tesla tout en étant
+   * `asleep` côté Fleet API — il faut un `wake_up` pour lire le SoC réel).
+   * Sondage borné (coût Fleet API) ; l'état non-online n'est pas mis en cache,
+   * donc chaque sonde voit la vraie transition.
+   */
+  async function wakeAndRead(vehicleId: string) {
+    setWaking(true);
+    setWakeNote("Réveil du véhicule en cours… (cela peut prendre ~30 s)");
+    setError(null);
+    try {
+      const res = await fetch("/api/vehicle/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicleId, command: { type: "wake" } }),
+      });
+      const data = await res.json();
+      if (data.needsAuth) {
+        window.location.href = "/api/tesla/auth/login";
+        return;
+      }
+      const result: CommandResult | undefined = data.result;
+      if (result && !result.ok) {
+        // Réveil refusé (ex. exigence de commandes signées) : on l'affiche.
+        setCommandResult(result);
+        setWakeNote(null);
+        return;
+      }
+      // Sondage : jusqu'à 7 tentatives espacées de ~3 s (~21 s).
+      for (let i = 0; i < 7; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const sres = await fetch(
+          `/api/vehicle/state?vehicleId=${encodeURIComponent(vehicleId)}`,
+        );
+        const sdata = await sres.json();
+        if (sdata.needsAuth) {
+          window.location.href = "/api/tesla/auth/login";
+          return;
+        }
+        if (sres.ok && sdata.ok) {
+          setState(sdata.state as VehicleState);
+          setMode(sdata.mode);
+          setPhase("connected");
+          if ((sdata.state as VehicleState).connectivity === "online") {
+            setWakeNote(null);
+            return;
+          }
+        }
+      }
+      setWakeNote(
+        "Le véhicule ne s'est pas réveillé à temps. Réessaie dans un instant — ou ouvre l'app Tesla pour le réveiller, puis « Rafraîchir l'état ».",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur lors du réveil");
+    } finally {
+      setWaking(false);
+    }
   }
 
   async function disconnect() {
@@ -245,7 +307,8 @@ export function VehicleConnect() {
         </p>
       )}
 
-      {phase === "connected" && state && (
+      {/* Véhicule en ligne : on affiche le vrai état de charge. */}
+      {phase === "connected" && state && state.connectivity === "online" && (
         <div className="space-y-3" aria-live="polite">
           <BatteryGauge soc={state.soc} limit={state.chargeLimitSoc} />
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -273,6 +336,65 @@ export function VehicleConnect() {
 
           {mode === "tesla" && (
             <Button variant="secondary" size="sm" onClick={disconnect}>
+              Déconnecter le compte Tesla
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Véhicule en veille/hors-ligne : on NE montre PAS une fausse jauge 0 %.
+          On explique honnêtement et on propose de réveiller pour lire le SoC réel. */}
+      {phase === "connected" && state && state.connectivity !== "online" && (
+        <div className="space-y-3" aria-live="polite">
+          <div
+            className="rounded-lg p-3 space-y-1"
+            style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+          >
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+              Véhicule {state.connectivity === "asleep" ? "en veille" : "hors ligne"} (Fleet API)
+            </p>
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+              La voiture peut apparaître dans l&apos;app Tesla tout en étant
+              <strong> endormie</strong> côté API : Tesla la laisse dormir pour
+              préserver la batterie. L&apos;état de charge n&apos;est pas lisible
+              tant qu&apos;elle n&apos;est pas réveillée — on ne l&apos;invente pas.
+            </p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Dernière vérification : {new Date(state.readAt).toLocaleString("fr-FR")}
+            </p>
+          </div>
+
+          {wakeNote && (
+            <p className="text-sm" role="status" style={{ color: "var(--text-secondary)" }}>
+              {wakeNote}
+            </p>
+          )}
+          {commandResult && !commandResult.ok && (
+            <p className="text-sm" role="alert" style={{ color: "var(--accent-danger)" }}>
+              {commandResult.message}
+            </p>
+          )}
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              onClick={() => selectedId && wakeAndRead(selectedId)}
+              loading={waking}
+              disabled={waking}
+            >
+              Réveiller et lire l&apos;état
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => selectedId && readState(selectedId)}
+              disabled={waking}
+            >
+              Rafraîchir l&apos;état
+            </Button>
+          </div>
+
+          {mode === "tesla" && (
+            <Button variant="secondary" size="sm" onClick={disconnect} disabled={waking}>
               Déconnecter le compte Tesla
             </Button>
           )}

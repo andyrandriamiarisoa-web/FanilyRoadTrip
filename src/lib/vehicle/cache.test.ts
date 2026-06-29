@@ -125,6 +125,41 @@ describe("CachingVehicleProvider", () => {
     expect(delegate.stateCalls).toBe(2)
   })
 
+  it("ne met PAS en cache un état non-online (réveil immédiatement re-sondable)", async () => {
+    // Délégué qui renvoie d'abord 'asleep' (×2), puis 'online'.
+    let calls = 0
+    const delegate: VehicleProvider = {
+      mode: "tesla",
+      async listVehicles() { return [] },
+      async getVehicleState(vehicleId: string): Promise<VehicleState> {
+        calls++
+        const connectivity = calls < 3 ? "asleep" : "online"
+        return {
+          vehicleId, soc: connectivity === "online" ? 64 : 0,
+          chargeLimitSoc: 80, estimatedRangeKm: connectivity === "online" ? 330 : 0,
+          isCharging: false, connectivity,
+          readAt: new Date(calls * 1000).toISOString(), source: "tesla",
+        }
+      },
+      async sendCommand() { return { ok: true, message: "ok", requiresSignedCommand: false } },
+    }
+    const cache = new CachingVehicleProvider(delegate, {
+      ttlMs: 300_000, now: () => 0, store: freshStore(),
+    })
+
+    const a = await cache.getVehicleState("v1") // asleep → non caché
+    const b = await cache.getVehicleState("v1") // asleep → relit (pas de cache)
+    expect(a.connectivity).toBe("asleep")
+    expect(b.connectivity).toBe("asleep")
+    expect(calls).toBe(2) // les deux lectures ont bien atteint le délégué
+
+    const c = await cache.getVehicleState("v1") // online → mis en cache
+    expect(c.connectivity).toBe("online")
+    const d = await cache.getVehicleState("v1") // servi depuis le cache
+    expect(calls).toBe(3)
+    expect(d).toEqual(c)
+  })
+
   it("ne met jamais une commande en cache", async () => {
     const delegate = new CountingProvider()
     const cache = new CachingVehicleProvider(delegate, {
