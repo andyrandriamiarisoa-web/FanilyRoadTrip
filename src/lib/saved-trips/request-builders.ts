@@ -73,14 +73,16 @@ export function stopToOpportunity(stop: PlanStop, index: number): Opportunity | 
   const geo = geocodeCity(stop.city);
   if (!geo) return null;
   const nights = Math.max(0, stop.nights);
-  const durationMin = Math.max(120, nights * 240 + 120);
+  // Une étape saisie est **garantie** (forced) : durée de visite sur place
+  // bornée (demi-journée) — les nuits sont modélisées par `stayNights`, pas
+  // par une visite de 10h qui déborderait la journée et fausserait le budget.
   return {
     id: `user-stop-${index}-${slug(stop.city)}`,
-    title: `${stop.city} (étape souhaitée${nights > 0 ? ` · ${nights} nuit${nights > 1 ? "s" : ""}` : ""})`,
+    title: `${stop.city} (étape${nights > 0 ? ` · ${nights} nuit${nights > 1 ? "s" : ""}` : ""})`,
     category: "attraction",
     location: { lat: geo.lat, lng: geo.lng },
     score: 1,
-    durationMin,
+    durationMin: 180,
     timeWindow: stop.fixedDate
       ? { start: stop.fixedDate, end: stop.fixedDate }
       : undefined,
@@ -88,6 +90,8 @@ export function stopToOpportunity(stop: PlanStop, index: number): Opportunity | 
     babyFriendly: true,
     source: "saisie utilisateur",
     sourceStatus: "verified",
+    forced: true,
+    stayNights: nights,
   };
 }
 

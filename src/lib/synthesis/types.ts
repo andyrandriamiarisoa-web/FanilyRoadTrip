@@ -28,6 +28,15 @@ export interface Opportunity {
   babyFriendly?: boolean;
   source: string;
   sourceStatus: SourceStatus;
+  /**
+   * Étape **garantie** saisie par l'utilisateur : le solveur l'honore toujours
+   * (jamais arbitrée par le sac à dos), comme l'ancre. Si elle est infaisable
+   * dans la fenêtre, un conflit explicite est émis — jamais d'abandon
+   * silencieux.
+   */
+  forced?: boolean;
+  /** Nombre de nuits à passer sur place (étape garantie multi-nuits). */
+  stayNights?: number;
 }
 
 export interface Person extends Opportunity {

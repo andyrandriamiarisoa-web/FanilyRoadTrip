@@ -30,6 +30,7 @@ interface AnchoredTripFormProps {
   onResult: (result: {
     candidates: TripCandidate[];
     dateOptions: DateOption[];
+    effectiveRequest?: unknown;
   }) => void;
   hasExisting: boolean;
 }
@@ -88,6 +89,7 @@ export function AnchoredTripForm({
       onResult({
         candidates: (data.candidates ?? []) as TripCandidate[],
         dateOptions: (data.dateOptions ?? []) as DateOption[],
+        effectiveRequest: data.effectiveRequest ?? built.request,
       });
       if (built.unknownStops.length > 0) {
         setError(

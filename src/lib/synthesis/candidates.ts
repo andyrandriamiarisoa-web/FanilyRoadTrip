@@ -19,14 +19,19 @@ const AMBIANCE_BUDGET_RATIO: Record<Ambiance, number> = {
  * On **classe sans exclure** (le reste du pool reste consultable ailleurs).
  */
 async function pickForAmbiance(req: SynthesisRequest, ambiance: Ambiance): Promise<Opportunity[]> {
-  const nonPeople = req.opportunities ?? [];
+  const allNonPeople = req.opportunities ?? [];
   const people = req.people ?? [];
-  const nonPeopleCost = nonPeople.reduce((s, o) => s + o.durationMin, 0);
-  const peopleCost = people.reduce((s, o) => s + o.durationMin, 0);
-  const budgetMin = peopleCost + Math.round(nonPeopleCost * AMBIANCE_BUDGET_RATIO[ambiance]);
+  // Étapes garanties (forced) : toujours retenues, comme les personnes-ancres.
+  // Le sac à dos n'arbitre que les opportunités **optionnelles**.
+  const forcedStops = allNonPeople.filter((o) => o.forced);
+  const optional = allNonPeople.filter((o) => !o.forced);
+  const alwaysIn = [...people, ...forcedStops];
+  const alwaysInCost = alwaysIn.reduce((s, o) => s + o.durationMin, 0);
+  const optionalCost = optional.reduce((s, o) => s + o.durationMin, 0);
+  const budgetMin = alwaysInCost + Math.round(optionalCost * AMBIANCE_BUDGET_RATIO[ambiance]);
   return selectWithSolver({
-    pool: nonPeople,
-    people,
+    pool: optional,
+    people: alwaysIn,
     weightOf: (o) => opportunityWeight(o, ambiance, req.themeCategory),
     budgetMin,
   });
