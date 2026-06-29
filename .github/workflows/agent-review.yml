@@ -1,0 +1,85 @@
+name: Agent Review
+
+# Sur chaque PR : (1) porte de COUVERTURE déterministe (bloquante via les seuils
+# Vitest), puis (2) revue AGENT Claude (conformité specs + cas de test manquants),
+# consultative — elle poste un commentaire et ne bloque jamais le merge.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: agent-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  coverage:
+    name: Couverture (cas validation + échec)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Les seuils planchers vivent dans vitest.config.ts (coverage.thresholds) :
+      # une chute marquée fait échouer cette étape — c'est la porte BLOQUANTE.
+      - name: Vitest coverage (seuils planchers)
+        run: npm run test:coverage
+
+      - name: Upload coverage summary
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage/coverage-summary.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  agent-spec-review:
+    name: Revue agent (specs) — consultative
+    needs: [coverage]
+    # S'exécute même si la couverture échoue, pour donner le retour qualitatif.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (historique pour le diff)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Le script n'utilise que git + fetch natifs (aucune dépendance) → pas de
+      # `npm ci`. On récupère juste le résumé de couverture produit en amont.
+      - name: Download coverage summary
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage
+        continue-on-error: true
+
+      - name: Agent review (skip honnête si pas de clé API)
+        run: node scripts/agent-review.mjs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: claude-sonnet-4-6
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
