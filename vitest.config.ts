@@ -7,6 +7,12 @@ export default defineConfig({
     globals: false,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["node_modules", ".next"],
+    // Quelques tests « best-effort » enrichissent des trajets via géocodage +
+    // routage réseau (`attachRealisticLegs`). Sous l'instrumentation de
+    // couverture (v8), leur surcoût les faisait dépasser le défaut de 5 s en CI
+    // (flaky : verts en `vitest run`, timeout en `--coverage`). 15 s leur laisse
+    // une marge sans masquer un vrai blocage.
+    testTimeout: 15_000,
     coverage: {
       provider: "v8",
       // `json-summary` est lu par l'agent CI (scripts/agent-review.mjs) ;
