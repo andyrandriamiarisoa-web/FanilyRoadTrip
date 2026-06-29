@@ -63,10 +63,21 @@ export class CachingVehicleProvider implements VehicleProvider {
     return this.cached(`${this.mode}:list`, () => this.delegate.listVehicles())
   }
 
-  getVehicleState(vehicleId: string): Promise<VehicleState> {
-    return this.cached(`${this.mode}:state:${vehicleId}`, () =>
-      this.delegate.getVehicleState(vehicleId),
-    )
+  async getVehicleState(vehicleId: string): Promise<VehicleState> {
+    const key = `${this.mode}:state:${vehicleId}`
+    const hit = this.store.get(key) as CacheEntry<VehicleState> | undefined
+    if (hit && hit.expiresAt > this.now()) return hit.value
+    const value = await this.delegate.getVehicleState(vehicleId)
+    // On ne met en cache que l'état **en ligne** (la donnée facturable de
+    // valeur : SoC, autonomie). Un état « en veille / hors-ligne » est
+    // transitoire et ne contient pas de SoC réel : le cacher bloquerait le
+    // sondage après un réveil (`wake`) pendant tout le TTL. On le laisse donc
+    // re-vérifiable immédiatement (la vérification de connectivité seule, sans
+    // lecture `vehicle_data` facturable).
+    if (value.connectivity === "online") {
+      this.store.set(key, { value, expiresAt: this.now() + this.ttlMs })
+    }
+    return value
   }
 
   async sendCommand(vehicleId: string, command: VehicleCommand): Promise<CommandResult> {
