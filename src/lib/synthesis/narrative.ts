@@ -88,7 +88,11 @@ export function templateNarrative(c: TripCandidate): string {
     for (const s of [...day.stops].sort((a, b) => a.start.localeCompare(b.start))) {
       const t = s.start.slice(11, 16);
       if (s.kind === "visit") lines.push(`- ${t} — ${s.title}${s.source ? ` _(source : ${s.source})_` : ""}`);
-      else if (s.kind === "anchor") lines.push(`- ${t} — ⭐ ${s.title}`);
+      else if (s.kind === "anchor") {
+        lines.push(`- ${t} — ⭐ ${s.title}`);
+        // Journée libre de séjour : suggestions de proximité (classées, au choix).
+        if (s.curated && s.curated.length) lines.push(`  ↳ à proximité : ${s.curated.map((x) => x.title).join(", ")}`);
+      }
       else if (s.kind === "drive") {
         const city = cityOf(s.location);
         lines.push(`- ${t} — 🚗 Route vers ${city ?? "l'étape suivante"}`);
