@@ -20,7 +20,12 @@ export function shareTripUrl(plan: TripPlan): string {
 
 export function decodeTripFromUrl(encoded: string): TripPlan | null {
   try {
-    const json = LZString.decompressFromEncodedURIComponent(encoded);
+    // `compressToEncodedURIComponent` peut émettre des « + ». Dans une query
+    // string, la lecture (URLSearchParams / searchParams Next) décode « + » en
+    // **espace** — ce qui corrompait le payload à l'ouverture d'un lien partagé.
+    // On restaure les « + » avant décompression (no-op si déjà propre).
+    const normalized = encoded.replace(/ /g, "+");
+    const json = LZString.decompressFromEncodedURIComponent(normalized);
     if (!json) return null;
     return JSON.parse(json) as TripPlan;
   } catch {

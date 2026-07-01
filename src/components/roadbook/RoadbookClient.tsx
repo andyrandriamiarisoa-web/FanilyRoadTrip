@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { LodgingPanel } from "@/components/lodging/LodgingPanel";
 import { ReservationsForDay } from "@/components/reservations/ReservationsForDay";
-import { exportTripAsJson, shareTripUrl } from "@/lib/export";
+import { exportTripAsJson, shareTripUrl, decodeTripFromUrl } from "@/lib/export";
 import { buildIcs, tripPlanToEvents, reservationsToEvents } from "@/lib/calendar/ics";
 
 /** Réservations couvrant une date (début ≤ date ≤ fin, ou début = date). */
@@ -64,10 +64,21 @@ export function RoadbookClient() {
     let mounted = true;
     async function load() {
       try {
-        const trip = await getLatestTrip();
+        // Lien partagé : /carnet?trip=<lz-string>. On décode le voyage **depuis
+        // l'URL** (aucune dépendance à l'IndexedDB local → fonctionne sur un autre
+        // appareil / navigateur). Sinon, on charge le dernier voyage local.
+        const encoded =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("trip")
+            : null;
+        const shared = encoded ? decodeTripFromUrl(encoded) : null;
+
+        const trip = shared ?? (await getLatestTrip());
         if (!mounted) return;
         setPlan(trip);
-        if (trip) {
+        // Sélections / SavedTrip promu / snapshots ne concernent qu'un voyage
+        // **local** (un voyage partagé n'existe pas dans l'IndexedDB de ce poste).
+        if (trip && !shared) {
           const sel = await getLodgingSelections(trip.id);
           setSelections(sel);
           // Cherche le SavedTrip promu sur ce TripPlan (le plus récent).
