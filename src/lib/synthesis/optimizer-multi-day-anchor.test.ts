@@ -20,12 +20,12 @@ const adapters: SynthesisAdapters = {
 };
 
 describe("layoutAligned — ancre multi-jour", () => {
-  it("respecte un bloc d'ancre sur plusieurs jours consécutifs", async () => {
-    // Séminaire de 5 jours du 5 au 9 août.
+  it("couvre un séjour multi-jour comme présence MINIMALE (basé sur place, libre)", async () => {
+    // Séjour de 5 jours du 5 au 9 août.
     const multiDayAnchor: Anchor = {
       ...REFERENCE_ANCHOR,
       id: "multi-day-event",
-      title: "Séminaire d'entreprise",
+      title: "Séjour d'entreprise",
       start: "2026-08-05T09:00:00+02:00",
       end: "2026-08-09T18:00:00+02:00",
     };
@@ -46,13 +46,24 @@ describe("layoutAligned — ancre multi-jour", () => {
       adapters,
     );
 
-    // Chacun des 5 jours d'ancre est présent et porte au moins un stop kind=anchor.
     const anchorDates = ["2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09"];
-    for (const date of anchorDates) {
-      const day = cand.days.find((d) => d.date === date);
-      expect(day, `jour ${date}`).toBeDefined();
-      expect(day!.stops.some((s) => s.kind === "anchor")).toBe(true);
+    const blockDays = anchorDates.map((date) => cand.days.find((d) => d.date === date)!);
+    for (const d of blockDays) expect(d).toBeDefined();
+
+    // Présence GARANTIE (minimale) : chaque nuit du bloc est passée à l'ancre.
+    for (const d of blockDays) {
+      const night = d.stops.find((s) => s.kind === "night");
+      expect(night?.location?.lat).toBeCloseTo(multiDayAnchor.location.lat, 2);
     }
+    // L'événement est épinglé (au moins un stop d'ancre sur le bloc, dont le 1er jour).
+    expect(blockDays[0].stops.some((s) => s.kind === "anchor")).toBe(true);
+
+    // Pas EXCLUSIF : les jours intermédiaires ne sont PAS collés à l'ancre 09–18h —
+    // le foyer explore à proximité (au moins une visite pendant le séjour).
+    const innerVisits = ["2026-08-06", "2026-08-07", "2026-08-08"]
+      .map((date) => cand.days.find((d) => d.date === date)!)
+      .reduce((n, d) => n + d.stops.filter((s) => s.kind === "visit").length, 0);
+    expect(innerVisits).toBeGreaterThan(0);
   });
 
   it("ne fait pas conduire le foyer pendant le bloc d'ancre", async () => {

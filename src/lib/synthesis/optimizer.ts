@@ -31,7 +31,7 @@ import type {
 import type { SynthesisAdapters, GeoProvider } from "./adapters";
 import { curateSlot } from "./curation";
 import {
-  projection, addDays, daysBetween, isoDateTime, weekday, parseHM,
+  projection, addDays, daysBetween, isoDateTime, weekday, parseHM, haversineKm,
 } from "./geo-time";
 
 // ── Sac à dos 0/1 exact (programmation dynamique) ───────────────────────────
@@ -303,12 +303,34 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   /** Plafond de conduite du jour `date` (jour travaillé → saut du soir seulement). */
   const dayCapFor = (date: string) => (c.workDays.includes(weekday(date)) ? eveningCap : cap);
 
+  // **Ancre = présence minimale, pas exclusive.** Pour une ancre multi-jour
+  // (séjour), les opportunités **proches de l'ancre** sont vécues PENDANT le
+  // séjour (le foyer est basé sur place mais **libre d'explorer**), au lieu
+  // d'être repoussées sur le corridor. Le reste alimente aller/retour. (Une ancre
+  // 1 jour n'a pas de jour de séjour à remplir → `stayPool` vide, comportement
+  // inchangé.)
+  const isMultiDayAnchor = anchorEndDate !== anchorStartDate;
+  const STAY_RADIUS_KM = 60;
+  const stayPool = isMultiDayAnchor
+    ? selected.filter(
+        (o) => o.category !== "people" && !o.forced && haversineKm(o.location, anchorLoc) <= STAY_RADIUS_KM,
+      )
+    : [];
+  // Suggestions curatées de proximité (classées, jamais exclues) pour une
+  // journée de séjour sans visite planifiée.
+  const staySuggestions = isMultiDayAnchor
+    ? curateSlot("workday-family", anchorLoc, selected, { radiusKm: STAY_RADIUS_KM })
+        .slice(0, 3)
+        .map((o) => ({ id: o.id, title: o.title, source: o.source, sourceStatus: o.sourceStatus }))
+    : undefined;
+
   // Côté corridor : aller (origine→ancre) vs retour (ancre→origine), ordonnés
   // par progression le long de l'axe (on les atteint dans l'ordre géographique).
-  const out = selected
+  const corridor = selected.filter((o) => !stayPool.includes(o));
+  const out = corridor
     .filter((o) => projection(o.location, win.origin, anchorLoc) < 0.95)
     .sort((a, b) => projection(a.location, win.origin, anchorLoc) - projection(b.location, win.origin, anchorLoc));
-  const back = selected
+  const back = corridor
     .filter((o) => !out.includes(o))
     .sort((a, b) => projection(a.location, anchorLoc, win.origin) - projection(b.location, anchorLoc, win.origin));
 
@@ -407,6 +429,7 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
   let wpOut = 0;          // prochaine étape aller à atteindre
   let wpBack = 0;         // prochaine étape retour à atteindre
   let parkDaysLeft = 0;   // nuits encore dues sur une étape garantie (foyer immobile)
+  let stayIdx = 0;        // prochaine visite de proximité à vivre pendant le séjour d'ancre
 
   /** Visite d'une opportunité atteinte (forced/personne : toujours ; optionnelle : si la journée ne déborde pas). */
   const visitReached = (o: Opportunity, date: string, heat: boolean): PlannedStop[] => {
@@ -459,30 +482,56 @@ export async function layoutAligned(p: AlignedLayoutParams, adapters: SynthesisA
       }
 
       if (date === anchorStartDate) {
+        // Premier jour = l'événement fixe, à ses heures réelles. Pour un séjour
+        // multi-jour, on borne au 1er jour (le séjour n'est pas un événement
+        // continu qui occupe toute la plage — c'est une présence minimale).
         stops.push({
           title: anchor.title, kind: "anchor",
-          start: anchor.start, end: anchor.end, location: anchor.location,
-          source: anchor.source, sourceStatus: anchor.sourceStatus,
+          start: anchor.start,
+          end: isMultiDayAnchor ? isoDateTime(date, parseHM("18:00")) : anchor.end,
+          location: anchor.location, source: anchor.source, sourceStatus: anchor.sourceStatus,
         });
         anchorPlaced = true;
-      } else if (date === anchorEndDate && anchorEndDate !== anchorStartDate) {
-        // Dernier jour du bloc — borne supérieure réelle.
+        cur.clock = Math.max(cur.clock, parseHM(isMultiDayAnchor ? "18:00" : anchor.end.slice(11, 16)));
+      } else if (date === anchorEndDate) {
+        // Dernier jour du séjour — borne supérieure réelle (heure de fin).
         stops.push({
           title: `${anchor.title} — dernier jour`, kind: "anchor",
           start: isoDateTime(date, parseHM("09:00")), end: anchor.end, location: anchor.location,
           source: anchor.source, sourceStatus: anchor.sourceStatus,
         });
+        cur.clock = Math.max(cur.clock, parseHM(anchor.end.slice(11, 16)));
       } else {
-        // Jour intermédiaire du bloc : présence continue à l'ancre, 09h–18h.
-        stops.push({
-          title: `${anchor.title} — journée`, kind: "anchor",
-          start: isoDateTime(date, parseHM("09:00")), end: isoDateTime(date, parseHM("18:00")), location: anchor.location,
-          source: anchor.source, sourceStatus: anchor.sourceStatus,
-        });
+        // Jour intermédiaire = **séjour libre** (présence minimale) : le foyer est
+        // basé sur place mais LIBRE d'explorer. On vit les opportunités de
+        // proximité comme visites du jour ; sinon journée libre + suggestions
+        // curatées (classées, jamais imposées).
+        let added = 0;
+        while (stayIdx < stayPool.length && added < 3 && cur.clock + stayPool[stayIdx].durationMin <= DAY_END_MIN) {
+          const o = stayPool[stayIdx++];
+          stops.push({
+            opportunityId: o.id, title: o.title, kind: "visit",
+            start: isoDateTime(date, cur.clock), end: isoDateTime(date, cur.clock + o.durationMin),
+            location: o.location, source: o.source, sourceStatus: o.sourceStatus,
+            note: heat && o.indoor === false ? "Séjour — à proximité (extérieur, prudence chaleur)" : "Séjour — à proximité de l'ancre",
+          });
+          cur.clock += o.durationMin;
+          includedOpportunityIds.push(o.id);
+          added += 1;
+        }
+        if (added === 0) {
+          stops.push({
+            title: `${anchor.title} — journée libre (séjour sur place)`, kind: "anchor",
+            start: isoDateTime(date, parseHM("09:00")), end: isoDateTime(date, parseHM("18:00")), location: anchor.location,
+            source: anchor.source, sourceStatus: anchor.sourceStatus,
+            curated: staySuggestions,
+          });
+        }
       }
 
       stops.push({
-        title: "Nuit (à proximité de l'événement)", kind: "night",
+        title: isMultiDayAnchor ? "Nuit (séjour sur place, à proximité de l'ancre)" : "Nuit (à proximité de l'événement)",
+        kind: "night",
         start: isoDateTime(date, Math.max(cur.clock, DAY_END_MIN)),
         end: isoDateTime(addDays(date, 1), DAY_START_MIN),
         location: anchorLoc,

@@ -43,6 +43,8 @@ Application PWA mobile-first en français pour planifier un voyage en Tesla Mode
 | V4.1 | **Découpe des longs trajets** (le solveur n'écrase plus un trajet sur une journée : plafond de conduite/jour **dérivé du Profil Foyer**, longs trajets répartis avec **nuits intermédiaires dans de vraies villes**, **arrivée à l'ancre avant son heure de début**, nuits d'étape honorées exactement — fini les jours « reposants » de 7 h de route) | ✅ |
 | V4.2 | **« Au plus rapide » faisable + plafond reposant + jours d'aller réservés** (l'intention « au plus rapide » réserve d'office ancre + nuits d'étapes garanties + trajet A/R minimal au lieu d'une fenêtre infaisable ; plafond conduite/jour borné à 5 h ; l'aller réserve les nuits de séjour garanties pour arriver à l'ancre à l'heure ; nuits d'étape écourtées explicitement signalées) | ✅ |
 | V4.3 | **Positionnement conscient des jours travaillés** (le solveur part **plus tôt pour capter les week-ends** : aller/retour dimensionnés par la **capacité de conduite réelle** des jours — libre = plafond, travaillé = court saut du soir — au lieu d'une fraction fixe du budget ; la **faisabilité prime** sur le budget de nuits ; estimation de nuits « au plus rapide » pondérée par le rythme télétravail → fenêtre cohérente avec le carnet) | ✅ |
+| V4.4 | **Ancre = présence minimale, pas exclusive** (une ancre multi-jour est un **séjour** : le foyer est **basé sur place** — nuits garanties = présence minimale — mais **libre d'explorer** ; les opportunités proches de l'ancre sont vécues *pendant* le séjour au lieu d'être repoussées sur le corridor ; jours intermédiaires = visites de proximité ou journée libre + suggestions curatées, plus de « présence continue 09–18h » collée aux coordonnées) | ✅ |
+| N1 | **Récit jour par jour : villes + temps de parcours** (total en tête, temps de route par journée, trajets « 🚗 Route vers <ville> », nuits « — <ville> », ordre chronologique) — pour comparer les 3 propositions | ✅ |
 
 **Refonte `/plan` (U1)** : suppression du « voyage de référence » Fresnes↔Marseille
 codé en dur. La page `/plan` propose désormais **deux entrées** :
@@ -398,6 +400,23 @@ jours libres × plafond) → la fenêtre affichée (ex. ~11 nuits) **coïncide a
 carnet généré** au lieu d'un « 8 nuits » trompeur. Résultat sur le cas réel :
 départ avancé au week-end, Dijon honorée, **arrivée à Marseille avant l'heure de
 l'anniversaire, zéro conflit**.
+
+**Ancre = présence minimale (séjour libre, V4.4)** : une ancre définie d'une date
+de début à une date de fin n'impose qu'une **présence minimale**, pas une
+contrainte forte « présent *uniquement* à ces dates, collé à l'événement ».
+Auparavant, un bloc multi-jour glissait le foyer sur les coordonnées exactes de
+l'ancre **09h–18h « présence continue », zéro visite** (interprétation
+« séminaire »). Désormais (`layoutAligned`) : le foyer est **basé sur place**
+(nuits garanties à l'ancre = présence minimale) mais **libre d'explorer**. Les
+opportunités **proches de l'ancre** (`stayPool`, rayon 60 km) sont retirées du
+corridor aller/retour et **vécues pendant le séjour** (visites du jour) ; une
+journée sans visite planifiée devient une **journée libre + suggestions
+curatées** (`curateSlot`, classées sans exclure). Le 1er jour épingle l'événement
+fixe à ses heures réelles ; les bornes du séjour restent honorées mais
+n'excluent pas d'arriver plus tôt / rester après. Une ancre **1 jour** est
+inchangée (`stayPool` vide). Testé : `optimizer-multi-day-anchor.test.ts`
+(présence garantie chaque nuit + visites de proximité pendant le bloc). Le récit
+(`narrative.ts`) affiche ces journées « libres » avec leurs suggestions.
 
 ## Commandes essentielles
 
