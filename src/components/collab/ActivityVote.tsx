@@ -23,7 +23,9 @@ function decodePollParam(): Poll | null {
   const param = new URLSearchParams(window.location.search).get("poll");
   if (!param) return null;
   try {
-    const json = LZString.decompressFromEncodedURIComponent(param);
+    // « + » → espace lors de la lecture de la query string : on le restaure
+    // avant décompression (même correctif que le partage de carnet).
+    const json = LZString.decompressFromEncodedURIComponent(param.replace(/ /g, "+"));
     return json ? (JSON.parse(json) as Poll) : null;
   } catch {
     return null;
